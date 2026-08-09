@@ -1,0 +1,14 @@
+{
+  "name": "charter-quote-widget",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Embeddable multistep charter quote form for Webflow",
+  "scripts": {
+    "build": "node build-embed.js",
+    "test": "node test-widget.js",
+    "release": "node build-embed.js && node test-widget.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

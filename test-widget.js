@@ -143,7 +143,114 @@ check("legs is an array", Array.isArray(p.trip.legs), true);
 check("passengers", p.passengers, 4);
 check("contact email", p.contact.email, "test@example.com");
 
-console.log(failures === 0
-  ? "\nAll checks passed.\n"
-  : `\n${failures} check(s) failed.\n`);
-process.exit(failures === 0 ? 0 : 1);
+/* ============================================================
+   NATIVE WEBFLOW FORM BRIDGE
+   A second, isolated DOM containing a mock Webflow form block. The
+   widget should fill its fields and click its submit button, then wait
+   for Webflow's own success div before showing the success panel.
+   ============================================================ */
+
+const BUNDLE = fs.readFileSync("charter-quote.js", "utf8");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const WF_FIELDS = ["Reference", "Trip-Type", "Itinerary", "Dates-Flexible", "Passengers",
+  "Aircraft", "Baggage", "Pets", "Catering", "Ground-Transport", "Name", "Email",
+  "Phone", "Booking-For", "SMS-Consent", "Notes", "Page-URL", "Payload"];
+
+function mockWebflowForm() {
+  return '<div class="w-form">' +
+    '<form id="wf-form-Charter" name="wf-form-Charter" data-name="Charter Quote">' +
+    WF_FIELDS.map((n) => `<input name="${n}">`).join("") +
+    '<input type="submit" value="Submit">' +
+    '</form>' +
+    '<div class="w-form-done">Thank you</div>' +
+    '<div class="w-form-fail">Oops</div>' +
+    '</div>';
+}
+
+/* walks the four steps and submits — mirrors the manual flow above */
+function driveToSubmit(win, doc) {
+  const f = (el, t) => el.dispatchEvent(new win.Event(t, { bubbles: true }));
+  const c = (el) => el.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+  const id = (x) => doc.getElementById(x);
+
+  const from = doc.querySelector('[data-airport="from"]');
+  from.value = "KTEB"; f(from, "input");
+  c(doc.querySelector(".cq-sugg.is-open li[data-idx]"));
+
+  const to = doc.querySelector('[data-airport="to"]');
+  to.value = "palm beach"; f(to, "input");
+  c(doc.querySelector(".cq-sugg.is-open li[data-idx]"));
+
+  const dt = doc.querySelector('[data-fld="date"]');
+  dt.value = "2026-09-14"; f(dt, "input");
+
+  const go = () => f(id("cqForm"), "submit");
+  go();                                    // -> step 1
+  c(id("cqPaxInc")); c(id("cqPaxInc"));    // 4 passengers
+  go();                                    // -> step 2
+  id("cqName").value = "Test User";        f(id("cqName"), "input");
+  id("cqEmail").value = "test@example.com"; f(id("cqEmail"), "input");
+  id("cqPhone").value = "2035551234";      f(id("cqPhone"), "input");
+  id("cqNotes").value = "Wheels up early"; f(id("cqNotes"), "input");
+  go();                                    // -> review
+  go();                                    // final submit
+}
+
+function bootWidget(bodyHtml) {
+  const dm = new JSDOM('<!doctype html><html><head></head><body>' + bodyHtml + '</body></html>',
+    { runScripts: "outside-only", pretendToBeVisual: true });
+  dm.window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+  dm.window.eval(BUNDLE);
+  dm.window.CharterQuote.boot();
+  return dm;
+}
+
+(async function () {
+  console.log("\nWebflow form bridge");
+
+  const dm = bootWidget(mockWebflowForm() +
+    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  const w2 = dm.window, d2 = w2.document;
+
+  const form = d2.querySelector('form[data-name="Charter Quote"]');
+  let submitted = 0;
+  form.addEventListener("submit", (e) => { e.preventDefault(); submitted++; });
+
+  driveToSubmit(w2, d2);
+  await sleep(300);
+
+  const val = (n) => form.querySelector(`[name="${n}"]`).value;
+  check("native form submitted", submitted, 1);
+  check("reference written", /^CQ-\d{6}-[A-Z0-9]{4}$/.test(val("Reference")), true);
+  check("contact name written", val("Name"), "Test User");
+  check("contact email written", val("Email"), "test@example.com");
+  check("passengers written", val("Passengers"), "4");
+  check("notes written", val("Notes"), "Wheels up early");
+  check("itinerary flattened", /1\. KTEB -> KPBI\s+2026-09-14/.test(val("Itinerary")), true);
+  check("full payload attached", JSON.parse(val("Payload")).trip.legs[0].toIcao, "KPBI");
+  check("no field left unmapped", WF_FIELDS.every((n) => val(n) !== ""), true);
+
+  // widget must wait for Webflow's confirmation, not assume success
+  check("waits for Webflow to confirm", d2.getElementById("cqDone").classList.contains("is-open"), false);
+
+  d2.querySelector(".w-form-done").style.display = "block";
+  await sleep(400);
+  check("success panel after Webflow confirms",
+    d2.getElementById("cqDone").classList.contains("is-open"), true);
+  check("no preview payload dumped", d2.getElementById("cqDebug").hidden, true);
+
+  // a missing form must surface an error, never a false success
+  console.log("\nWebflow bridge — form missing from page");
+  const dm2 = bootWidget('<div id="charter-quote" data-webflow-form="Nonexistent"></div>');
+  driveToSubmit(dm2.window, dm2.window.document);
+  await sleep(300);
+  check("no false success", dm2.window.document.getElementById("cqDone").classList.contains("is-open"), false);
+  check("error surfaced to the user",
+    dm2.window.document.getElementById("cqFormErr").classList.contains("is-open"), true);
+
+  console.log(failures === 0
+    ? "\nAll checks passed.\n"
+    : `\n${failures} check(s) failed.\n`);
+  process.exit(failures === 0 ? 0 : 1);
+})();

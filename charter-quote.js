@@ -46,6 +46,13 @@
     // instead of sent, so you can check its shape before wiring it up.
     webhookUrl: D.webhook || "",
 
+    // Native Webflow form bridge — an alternative to webhookUrl that
+    // needs no third-party automation. Name a hidden Webflow form on
+    // the page and the widget fills it in and submits it, so entries
+    // land in Webflow's own Form Submissions panel and trigger its
+    // notification email. Takes precedence over webhookUrl.
+    webflowForm: D.webflowForm || "",
+
     // Gilroy is not a system font and this widget runs in its own
     // document, so the face has to be loaded here too. Paste the
     // stylesheet URL that serves it — an Adobe Fonts kit, the
@@ -807,6 +814,104 @@
     };
   }
 
+  /* ============================================================
+     NATIVE WEBFLOW FORM BRIDGE
+     Fills a hidden Webflow form on the host page and submits it, so
+     entries land in Webflow's Form Submissions panel and set off its
+     notification email. No webhook, no automation platform.
+     ============================================================ */
+  function findWebflowForm(name) {
+    var f = document.querySelector('form[data-name="' + name + '"]') ||
+            document.querySelector('form[name="' + name + '"]');
+    if (f) return f;
+    var byId = document.getElementById(name);
+    if (!byId) return null;
+    return byId.tagName === "FORM" ? byId : byId.querySelector("form");
+  }
+
+  /* legs are variable-length; a native form is flat, so flatten them */
+  function itineraryText(payload) {
+    return payload.trip.legs.map(function (l) {
+      var route = (l.fromIcao || "?") + " -> " + (l.toIcao || "?");
+      var when = [l.date, l.time].filter(Boolean).join(" ");
+      var where = [l.fromCity, l.toCity].filter(Boolean).join(" to ");
+      return l.sequence + ". " + route + "  " + when + (where ? "  (" + where + ")" : "");
+    }).join("\n");
+  }
+
+  function webflowFields(payload) {
+    var c = payload.contact;
+    return {
+      "Reference":        payload.reference,
+      "Trip-Type":        payload.trip.type,
+      "Itinerary":        itineraryText(payload),
+      "Dates-Flexible":   payload.trip.datesFlexible ? "Yes" : "No",
+      "Passengers":       String(payload.passengers),
+      "Aircraft":         payload.aircraftPreference,
+      "Baggage":          payload.baggage,
+      "Pets":             payload.pets ? "Yes" : "No",
+      "Catering":         payload.cateringRequested ? "Yes" : "No",
+      "Ground-Transport": payload.groundTransportRequested ? "Yes" : "No",
+      "Name":             c.name,
+      "Email":            c.email,
+      "Phone":            c.phone,
+      "Booking-For":      c.bookingFor,
+      "SMS-Consent":      c.smsConsent ? "Yes" : "No",
+      "Notes":            payload.notes,
+      "Page-URL":         payload.source.pageUrl,
+      "Payload":          JSON.stringify(payload)
+    };
+  }
+
+  /* Webflow reveals these by setting an inline display, which we can read
+     even when the whole form block is hidden — offsetParent can't. */
+  function wfShown(node) {
+    if (!node) return false;
+    if (node.style && (node.style.display === "block" || node.style.display === "flex")) return true;
+    return node.offsetParent !== null;
+  }
+
+  function submitViaWebflow(payload, onFail) {
+    var form = findWebflowForm(CONFIG.webflowForm);
+    if (!form) { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
+
+    var values = webflowFields(payload);
+    var missing = [];
+    for (var key in values) {
+      if (!Object.prototype.hasOwnProperty.call(values, key)) continue;
+      var field = form.querySelector('[name="' + key + '"]');
+      if (!field) { missing.push(key); continue; }
+      field.value = values[key];
+    }
+    if (missing.length && window.console && console.warn) {
+      console.warn("[charter-quote] Webflow form has no field named: " + missing.join(", "));
+    }
+
+    var wrap = form.parentNode;
+    var done = wrap ? wrap.querySelector(".w-form-done") : null;
+    var fail = wrap ? wrap.querySelector(".w-form-fail") : null;
+
+    var btn = form.querySelector('input[type="submit"], button[type="submit"]');
+    if (btn) btn.click();
+    else if (window.jQuery) window.jQuery(form).trigger("submit");
+    else { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
+
+    var waited = 0;
+    var poll = setInterval(function () {
+      waited += 200;
+      if (wfShown(done)) { clearInterval(poll); finish(payload, false); return; }
+      if (wfShown(fail)) {
+        clearInterval(poll);
+        onFail("That didn't send. Please try again, or call us and we'll take the details over the phone.");
+        return;
+      }
+      if (waited >= 12000) {
+        clearInterval(poll);
+        onFail("That took too long to send. Please try again, or call us and we'll take the details over the phone.");
+      }
+    }, 200);
+  }
+
   formEl.addEventListener("submit", function (e) {
     e.preventDefault();
     if ($("cqHp").value) return;
@@ -830,6 +935,16 @@
     nextBtn.disabled = true;
     nextBtn.textContent = "Sending your request…";
 
+    function failSend(message) {
+      nextBtn.disabled = false;
+      nextBtn.textContent = "Request a quote";
+      formErr.textContent = message;
+      formErr.classList.add("is-open");
+      reportHeight();
+    }
+
+    if (CONFIG.webflowForm) { submitViaWebflow(payload, failSend); return; }
+
     if (!CONFIG.webhookUrl) { finish(payload, true); return; }
 
     fetch(CONFIG.webhookUrl, {
@@ -839,11 +954,7 @@
     })
       .then(function (r) { if (!r.ok) throw new Error("Status " + r.status); finish(payload, false); })
       .catch(function () {
-        nextBtn.disabled = false;
-        nextBtn.textContent = "Request a quote";
-        formErr.textContent = "That didn't send. Check your connection and try again, or call us and we'll take the details over the phone.";
-        formErr.classList.add("is-open");
-        reportHeight();
+        failSend("That didn't send. Check your connection and try again, or call us and we'll take the details over the phone.");
       });
   });
 

@@ -69,9 +69,24 @@ marks fields with `.has-error`. Step 0 checks legs, step 2 checks contact fields
 steps 1 and 3 require nothing. The final submit re-runs steps 0 and 2 before
 sending.
 
-Submission POSTs JSON to `CONFIG.webhookUrl`. If that's empty the widget runs in
-**preview mode** — it shows the payload on screen instead of sending. This is the
-default and is how you test without a live webhook.
+Submission has three modes, checked in this order:
+
+1. **Native Webflow form** (`CONFIG.webflowForm`, from `data-webflow-form`).
+   Finds a Webflow form on the host page by `data-name`, fills its fields by
+   `name`, and clicks its submit button so Webflow's own jQuery handler picks it
+   up. Entries land in Webflow's Form Submissions panel — no webhook, no Make.
+   Field names are fixed in `webflowFields()`; `trip.legs` is flattened to text
+   by `itineraryText()` since a native form can't hold an array, and the whole
+   JSON payload also goes into a `Payload` field as a backstop.
+
+   It waits for Webflow's `.w-form-done` before calling `finish()`, so a
+   rejected submission surfaces an error instead of a false success. Detection
+   reads the **inline** `display` Webflow sets, not `offsetParent` — the form
+   block is hidden on the page, so `offsetParent` is null even on success.
+
+2. **Webhook** (`CONFIG.webhookUrl`). POSTs the JSON payload.
+3. **Preview mode** (neither set). Shows the payload on screen instead of
+   sending. This is the default and is how you test without either configured.
 
 ### The build
 
@@ -102,8 +117,9 @@ assertion.
 
 The bundle self-mounts into `#charter-quote` or any `[data-charter-quote]`
 element on DOMContentLoaded. `mount()` is idempotent. Config comes from data
-attributes: `data-webhook`, `data-bg`, `data-bg-deep`, `data-accent`,
-`data-font`, `data-font-url`, `data-pax`, `data-max-legs`, `data-ref-prefix`.
+attributes: `data-webflow-form`, `data-webhook`, `data-bg`, `data-bg-deep`,
+`data-accent`, `data-font`, `data-font-url`, `data-pax`, `data-max-legs`,
+`data-ref-prefix`.
 
 On success it dispatches `charterQuote:submitted` on `window` with
 `{reference, payload}`.
@@ -220,6 +236,8 @@ Gavin does this in Make's browser UI.
 | Whole Webflow page turns blue, or layout breaks | CSS scoping regressed. Run `node test-widget.js` — the scoping checks will catch it. |
 | Build throws `no-op replacement -> X` | A source edit broke that transform's pattern. Fix the pattern in `build-embed.js`. |
 | Form submits but nothing arrives in Make | Preview mode — `data-webhook` is missing or empty on the mount div. |
+| Webflow bridge: submit hangs, then times out | A field in the hidden Webflow form is marked **required**, or reCAPTCHA is on it. Browser validation blocks a hidden form and can't show the error. |
+| Webflow bridge: some fields arrive blank | Designer field name doesn't match `webflowFields()`. The console logs exactly which names it couldn't find. |
 | Two widgets on one page conflict | Not supported. The markup uses ids. One instance per page. |
 
 ---

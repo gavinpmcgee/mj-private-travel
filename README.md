@@ -48,14 +48,72 @@ Leave `data-webhook` off entirely to run in preview mode — the widget shows th
 JSON payload on screen instead of sending it, so you can check the shape before
 wiring up Make.
 
-## 3. Configuration
+## 3. Where submissions go
+
+Two options. Pick one.
+
+### Option A — native Webflow form (no webhook, no Make)
+
+Submissions land in Webflow's own **Form Submissions** panel and set off
+Webflow's notification email. Nothing else to sign up for.
+
+Add a normal Form Block to the page, name it `Charter Quote`, and give it a
+plain text field for each of these — the **field name in Designer must match
+exactly**, because that's what the widget looks for:
+
+```
+Reference   Trip-Type   Itinerary   Dates-Flexible   Passengers
+Aircraft    Baggage     Pets        Catering         Ground-Transport
+Name        Email       Phone       Booking-For      SMS-Consent
+Notes       Page-URL    Payload
+```
+
+Then set the Form Block's display to **none** in the Designer, and point the
+widget at it:
+
+```html
+<div id="charter-quote" data-webflow-form="Charter Quote"></div>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.1.0/charter-quote.js" defer></script>
+```
+
+The widget fills the hidden form in and submits it for you. It waits for
+Webflow's own success confirmation before showing the success panel, so a
+rejected submission shows an error rather than a false "thank you".
+
+Three things to get right:
+
+- **Don't mark any field required.** The form is hidden, so a browser
+  validation error on it can't be seen or dismissed — the submit just dies.
+- **Don't add reCAPTCHA** to this form. It can't be solved from a hidden form.
+- **Make `Itinerary`, `Notes`, and `Payload` textareas**, not single-line
+  inputs. Multi-city trips put one leg per line in `Itinerary`, and `Payload`
+  holds the full JSON as a backstop.
+
+Webflow caps form submissions by plan — check the site plan before launch if
+volume matters. `Payload` means no submission ever loses detail even if you
+skip some of the individual fields.
+
+### Option B — webhook to Make / Zapier
+
+```html
+<div id="charter-quote"
+     data-webhook="https://hook.us1.make.com/YOUR-WEBHOOK-ID"></div>
+```
+
+More flexible — route to Slack, SMS, a CRM. Costs another subscription and
+another thing to maintain.
+
+If both attributes are set, `data-webflow-form` wins.
+
+## 4. Configuration
 
 All config is on the mount div, so you never edit the hosted JS to change a
 setting:
 
 | Attribute | Default | What it does |
 |---|---|---|
-| `data-webhook` | *(empty)* | Where submissions POST. Empty = preview mode. |
+| `data-webflow-form` | *(empty)* | Name of a Webflow form to fill and submit. Takes precedence over `data-webhook`. |
+| `data-webhook` | *(empty)* | Where submissions POST. Empty (and no form) = preview mode. |
 | `data-bg` | `#265ABE` | Panel background |
 | `data-bg-deep` | `#1B4593` | Dropdown and recessed surfaces |
 | `data-accent` | `#FFB627` | Progress, active route line, focus rings |

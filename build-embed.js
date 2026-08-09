@@ -102,6 +102,7 @@ j = rep(j, SUBMIT_OLD, SUBMIT_NEW, "js submit notify");
 /* config comes off the mount element's data attributes */
 j = rep(j, /var CONFIG = \{/, "var D = el.dataset || {};\n  var CONFIG = {", "js CONFIG dataset");
 j = rep(j, /webhookUrl: "",/,  'webhookUrl: D.webhook || "",',      "js cfg webhook");
+j = rep(j, /webflowForm: "",/, 'webflowForm: D.webflowForm || "",', "js cfg webflowForm");
 j = rep(j, /fontUrl: "",/,     'fontUrl: D.fontUrl || "",',         "js cfg fontUrl");
 j = rep(j, /refPrefix: "CQ"/,  'refPrefix: D.refPrefix || "CQ"',    "js cfg refPrefix");
 j = rep(j, /maxLegs: 6,/,      "maxLegs: +(D.maxLegs || 6),",       "js cfg maxLegs");

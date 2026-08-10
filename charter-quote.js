@@ -980,7 +980,7 @@
      could fail on the first try and succeed on a slower second one. Nothing
      here forces or fakes the check. It waits for the token the page was
      already going to produce, then submits. */
-  var SPAM_TOKEN_WAIT = 6000;
+  var SPAM_TOKEN_WAIT = 4000;
 
   function spamToken() {
     var el = document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i], input[name*="captcha" i]');
@@ -998,22 +998,11 @@
       document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i]'));
   }
 
-  /* Turnstile can be set to solve only when asked, and Webflow asks at the
-     moment of submitting — far too late. Nudge it as the widget mounts so the
-     challenge runs while the customer is still filling in the form, instead
-     of making them wait once they've hit the button. Only ever fires once,
-     and never when a token already exists. */
-  function primeSpamCheck() {
-    var tries = 0;
-    var tick = setInterval(function () {
-      if (++tries > 20 || spamToken()) { clearInterval(tick); return; }
-      if (window.turnstile && typeof window.turnstile.execute === "function") {
-        clearInterval(tick);
-        try { window.turnstile.execute(); } catch (e) {}
-      }
-    }, 500);
-  }
-
+  /* Don't call turnstile.execute() to hurry this along. Cloudflare's widget
+     is meant to be visible, and executing it renders the challenge — which
+     on a bridged form means Webflow's hidden plumbing appears on the page.
+     If the token isn't ready in time, the answer is to turn Webflow's spam
+     protection off, not to poke at it from here. */
   function whenSpamTokenReady(cb) {
     if (!spamCheckPresent() || spamToken()) { cb(); return; }
     var waited = 0;
@@ -1031,11 +1020,34 @@
     }, 150);
   }
 
-  if (CONFIG.webflowForm) primeSpamCheck();
+  /* We drive this form, so nobody should ever see it — not the fields, not
+     Webflow's own "thank you", not a challenge widget it decides to render.
+     Hiding the Form Block in the Designer covers the fields; this covers the
+     rest, including anything injected into the block after page load. */
+  function hideWebflowPlumbing(form) {
+    var node = form, hops = 0;
+    while (node && hops < 4) {
+      if (node.className && String(node.className).indexOf("w-form") !== -1) break;
+      node = node.parentNode;
+      hops++;
+    }
+    var block = node && node.style ? node : form;
+    if (block.style.display !== "none") block.style.display = "none";
+    return block;
+  }
+
+  /* Do it at mount too — waiting until submit leaves a window in which the
+     block can surface on the page. */
+  if (CONFIG.webflowForm) {
+    var bridgedForm = findWebflowForm(CONFIG.webflowForm);
+    if (bridgedForm) hideWebflowPlumbing(bridgedForm);
+  }
 
   function submitViaWebflow(payload, onFail) {
     var form = findWebflowForm(CONFIG.webflowForm);
     if (!form) { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
+
+    hideWebflowPlumbing(form);
 
     var values = webflowFields(payload);
     var missing = [];

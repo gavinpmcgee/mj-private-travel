@@ -331,17 +331,17 @@ function bootWidget(bodyHtml) {
     }, { sent });
   }
 
-  /* The challenge has to start at mount, not at submit — otherwise the
-     customer waits out the whole window after pressing the button. */
-  console.log("\nWebflow bridge — starts the spam check early");
-  const dmPrime = bootWidget(mockWebflowForm(WF_FIELDS) +
+  /* The customer must never see the plumbing, and we must never make
+     Cloudflare render its challenge by executing it ourselves. */
+  console.log("\nWebflow bridge — keeps its plumbing out of sight");
+  const dmHide = bootWidget(mockWebflowForm(WF_FIELDS) +
     '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
   let executed = 0;
-  dmPrime.window.turnstile = { getResponse: () => "", execute: () => { executed++; } };
+  dmHide.window.turnstile = { getResponse: () => "", execute: () => { executed++; } };
   await sleep(700);
-  check("challenge kicked off before anyone submits", executed, 1);
-  await sleep(1200);
-  check("kicked off once, not repeatedly", executed, 1);
+  check("the form block is hidden at mount",
+    dmHide.window.document.querySelector(".w-form").style.display, "none");
+  check("never executes the challenge itself", executed, 0);
 
   /* Webflow's Turnstile check drops a token in asynchronously. Submitting
      before it lands is answered with 422, so the widget must wait. */

@@ -933,6 +933,16 @@
     var done = wrap ? wrap.querySelector(".w-form-done") : null;
     var fail = wrap ? wrap.querySelector(".w-form-fail") : null;
 
+    /* The Designer publishes whichever form state was left showing, so either
+       of these can already be visible before anything is submitted. Only a
+       change from the pre-submit state tells us anything. */
+    var doneWas = wfShown(done);
+    var failWas = wfShown(fail);
+    if ((doneWas || failWas) && window.console && console.warn) {
+      console.warn("[charter-quote] Webflow's " + (doneWas ? "success" : "error") +
+        " message is already visible before submitting. Set the form back to its normal state in the Designer — until then the widget can't reliably tell whether a submission worked.");
+    }
+
     var btn = form.querySelector('input[type="submit"], button[type="submit"]');
     if (btn) btn.click();
     else if (window.jQuery) window.jQuery(form).trigger("submit");
@@ -941,8 +951,8 @@
     var waited = 0;
     var poll = setInterval(function () {
       waited += 200;
-      if (wfShown(done)) { clearInterval(poll); finish(payload, false); return; }
-      if (wfShown(fail)) {
+      if (!doneWas && wfShown(done)) { clearInterval(poll); finish(payload, false); return; }
+      if (!failWas && wfShown(fail)) {
         clearInterval(poll);
         onFail("That didn't send. Please try again, or call us and we'll take the details over the phone.");
         return;

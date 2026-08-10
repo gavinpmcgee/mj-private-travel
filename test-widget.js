@@ -303,6 +303,24 @@ function bootWidget(bodyHtml) {
   check("long note truncated", noteVal.length, WF_FIELD_MAX);
   check("truncation is visible", /\[…\]$/.test(noteVal), true);
 
+  /* The Designer publishes whichever form state was left showing. An error
+     div already visible at load must not be read as a failed submission. */
+  console.log("\nWebflow bridge — error state left visible in the Designer");
+  const dmStuck = bootWidget(mockWebflowForm(WF_FIELDS) +
+    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  const dStuck = dmStuck.window.document;
+  dStuck.querySelector(".w-form-fail").style.display = "block";   // as Webflow would publish it
+  dStuck.querySelector('form[data-name="Charter Quote"]')
+    .addEventListener("submit", (e) => e.preventDefault());
+  driveToSubmit(dmStuck.window, dStuck);
+  await sleep(600);
+  check("pre-existing error div is not read as failure",
+    dStuck.getElementById("cqFormErr").classList.contains("is-open"), false);
+  dStuck.querySelector(".w-form-done").style.display = "block";
+  await sleep(400);
+  check("success still detected underneath it",
+    dStuck.getElementById("cqDone").classList.contains("is-open"), true);
+
   // a missing form must surface an error, never a false success
   console.log("\nWebflow bridge — form missing from page");
   const dm2 = bootWidget('<div id="charter-quote" data-webflow-form="Nonexistent"></div>');

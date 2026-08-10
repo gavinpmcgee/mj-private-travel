@@ -1453,6 +1453,32 @@
     return node.offsetParent !== null;
   }
 
+  /* Designer fields aren't always plain text inputs. A select whose options
+     don't include our value silently keeps "", and a checkbox ignores .value
+     outright — both then fail validation on a form nobody can see. */
+  function setWebflowField(field, value) {
+    var type = (field.type || "").toLowerCase();
+
+    if (type === "checkbox") { field.checked = /^(yes|true|1)$/i.test(value); return; }
+
+    if (field.tagName === "SELECT") {
+      var found = false, i;
+      for (i = 0; i < field.options.length; i++) {
+        if (field.options[i].value === value) { found = true; break; }
+      }
+      if (!found) {
+        var opt = document.createElement("option");
+        opt.value = value;
+        opt.text = value;
+        field.appendChild(opt);
+      }
+      field.value = value;
+      return;
+    }
+
+    field.value = value;
+  }
+
   function submitViaWebflow(payload, onFail) {
     var form = findWebflowForm(CONFIG.webflowForm);
     if (!form) { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
@@ -1470,10 +1496,28 @@
           console.warn("[charter-quote] " + key + " was truncated to " + WF_FIELD_MAX + " characters for Webflow.");
         }
       }
-      field.value = value;
+      /* Constraints on a hidden form can only ever fail invisibly — the
+         browser refuses to submit and can't focus the field to say why.
+         The widget has already validated everything the customer typed. */
+      if (field.required) field.required = false;
+      if (field.getAttribute("pattern")) field.removeAttribute("pattern");
+
+      setWebflowField(field, value);
     }
     if (missing.length && window.console && console.warn) {
       console.warn("[charter-quote] Webflow form has no field named: " + missing.join(", "));
+    }
+
+    /* If it still won't validate, say which field and why, rather than
+       letting the browser drop the submission without a word. */
+    if (typeof form.checkValidity === "function" && !form.checkValidity()) {
+      var bad = [], all = form.querySelectorAll("[name]"), n;
+      for (n = 0; n < all.length; n++) {
+        if (all[n].willValidate && !all[n].checkValidity()) bad.push(all[n].name || all[n].tagName);
+      }
+      if (window.console && console.warn) {
+        console.warn("[charter-quote] The Webflow form won't validate, so the browser will refuse to send it. Offending fields: " + bad.join(", "));
+      }
     }
 
     var wrap = form.parentNode;

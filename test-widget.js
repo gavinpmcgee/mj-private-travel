@@ -303,6 +303,41 @@ function bootWidget(bodyHtml) {
   check("long note truncated", noteVal.length, WF_FIELD_MAX);
   check("truncation is visible", /\[…\]$/.test(noteVal), true);
 
+  /* Designer forms aren't always plain text inputs, and required flags on a
+     hidden form fail invisibly. Neither may block a submission. */
+  console.log("\nWebflow bridge — required flags, selects and checkboxes");
+  const awkward = '<div class="w-form">' +
+    '<form data-name="Charter Quote">' +
+    '<input name="Reference" required><input name="Trip-Type" required>' +
+    '<textarea name="Itinerary" required></textarea>' +
+    '<input name="Passengers" required><input name="Name" required>' +
+    '<input name="Email" type="email" required><input name="Phone">' +
+    '<select name="Aircraft" required><option value=""></option></select>' +
+    '<select name="Ground-Transport" required><option value="Yes"></option><option value="No"></option></select>' +
+    '<input name="Pets" type="checkbox"><input name="Catering" type="checkbox">' +
+    '<input name="Baggage" required><input name="Dates-Flexible">' +
+    '<input name="Booking-For"><input name="SMS-Consent">' +
+    '<input name="Notes"><input name="Page-URL">' +
+    '<input type="submit"></form>' +
+    '<div class="w-form-done"></div><div class="w-form-fail"></div></div>';
+  const dmAwk = bootWidget(awkward + '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  const dAwk = dmAwk.window.document;
+  const fAwk = dAwk.querySelector('form[data-name="Charter Quote"]');
+  let awkSubmits = 0;
+  fAwk.addEventListener("submit", (e) => { e.preventDefault(); awkSubmits++; });
+  driveToSubmit(dmAwk.window, dAwk);
+  await sleep(300);
+  check("required flags stripped", fAwk.querySelectorAll("[required]").length, 0);
+  check("form validates after filling", fAwk.checkValidity(), true);
+  check("select without a matching option still takes the value",
+    fAwk.querySelector('[name="Aircraft"]').value, "No preference");
+  check("select with matching options is unharmed",
+    fAwk.querySelector('[name="Ground-Transport"]').value, "No");
+  check("no duplicate option injected",
+    fAwk.querySelector('[name="Ground-Transport"]').options.length, 2);
+  check("checkbox set from Yes/No", fAwk.querySelector('[name="Pets"]').checked, false);
+  check("submit reached the form", awkSubmits, 1);
+
   /* The Designer publishes whichever form state was left showing. An error
      div already visible at load must not be read as a failed submission. */
   console.log("\nWebflow bridge — error state left visible in the Designer");

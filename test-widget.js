@@ -331,6 +331,18 @@ function bootWidget(bodyHtml) {
     }, { sent });
   }
 
+  /* The challenge has to start at mount, not at submit — otherwise the
+     customer waits out the whole window after pressing the button. */
+  console.log("\nWebflow bridge — starts the spam check early");
+  const dmPrime = bootWidget(mockWebflowForm(WF_FIELDS) +
+    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  let executed = 0;
+  dmPrime.window.turnstile = { getResponse: () => "", execute: () => { executed++; } };
+  await sleep(700);
+  check("challenge kicked off before anyone submits", executed, 1);
+  await sleep(1200);
+  check("kicked off once, not repeatedly", executed, 1);
+
   /* Webflow's Turnstile check drops a token in asynchronously. Submitting
      before it lands is answered with 422, so the widget must wait. */
   console.log("\nWebflow bridge — waits for the spam-check token");

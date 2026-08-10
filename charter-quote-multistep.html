@@ -1527,7 +1527,7 @@
      could fail on the first try and succeed on a slower second one. Nothing
      here forces or fakes the check. It waits for the token the page was
      already going to produce, then submits. */
-  var SPAM_TOKEN_WAIT = 12000;
+  var SPAM_TOKEN_WAIT = 6000;
 
   function spamToken() {
     var el = document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i], input[name*="captcha" i]');
@@ -1545,11 +1545,27 @@
       document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i]'));
   }
 
+  /* Turnstile can be set to solve only when asked, and Webflow asks at the
+     moment of submitting — far too late. Nudge it as the widget mounts so the
+     challenge runs while the customer is still filling in the form, instead
+     of making them wait once they've hit the button. Only ever fires once,
+     and never when a token already exists. */
+  function primeSpamCheck() {
+    var tries = 0;
+    var tick = setInterval(function () {
+      if (++tries > 20 || spamToken()) { clearInterval(tick); return; }
+      if (window.turnstile && typeof window.turnstile.execute === "function") {
+        clearInterval(tick);
+        try { window.turnstile.execute(); } catch (e) {}
+      }
+    }, 500);
+  }
+
   function whenSpamTokenReady(cb) {
     if (!spamCheckPresent() || spamToken()) { cb(); return; }
     var waited = 0;
     var tick = setInterval(function () {
-      waited += 250;
+      waited += 150;
       if (spamToken()) { clearInterval(tick); cb(); return; }
       if (waited >= SPAM_TOKEN_WAIT) {
         clearInterval(tick);
@@ -1559,8 +1575,10 @@
         }
         cb();
       }
-    }, 250);
+    }, 150);
   }
+
+  if (CONFIG.webflowForm) primeSpamCheck();
 
   function submitViaWebflow(payload, onFail) {
     var form = findWebflowForm(CONFIG.webflowForm);

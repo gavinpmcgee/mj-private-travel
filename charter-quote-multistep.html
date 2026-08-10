@@ -7,8 +7,15 @@
      Everything visual derives from this block.
      ============================================================ */
   :root {
-    --bg:        #265ABE;   /* brand blue — the widget surface */
-    --bg-deep:   #1B4593;   /* recessed panels, pressed states */
+    --bg:        #265ABE;   /* brand blue — the tint, and the solid discs on the track */
+    --bg-deep:   #1B4593;   /* dropdowns and recessed surfaces — stays opaque, for legibility */
+
+    /* The frosted panel. Declared twice on purpose: browsers without
+       color-mix() keep the literal rgba and still get a sane panel. */
+    --panel:     rgba(38, 90, 190, .58);
+    --panel:     color-mix(in srgb, var(--bg) 58%, transparent);
+    --blur:      18px;
+
     --on-bg:     #FFFFFF;   /* primary text */
     --on-bg-mid: rgba(255,255,255,.85);  /* labels, helper copy */
     --on-bg-low: rgba(255,255,255,.50);  /* placeholders */
@@ -22,16 +29,25 @@
     --font-sans: "Gilroy", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     --font-code: var(--font-sans);   /* point at a mono face if you prefer */
 
-    --radius: 5px;
-    --max: 700px;
+    --radius: 5px;          /* fields, buttons, small surfaces */
+    --panel-radius: 12px;   /* the panel's own corners — set data-radius to change */
+    --max: 100%;            /* full width — set data-max-width to cap it */
   }
 
   * { box-sizing: border-box; }
 
+  /* Standalone preview only — the build strips this rule entirely. The
+     gradient exists so the frosted panel has something to frost while you
+     iterate; on Webflow it's the page behind the embed that shows through. */
   html, body {
     margin: 0;
-    padding: 0;
-    background: var(--bg);
+    padding: 40px 24px;
+    background:
+      radial-gradient(900px 500px at 15% 0%, rgba(255,182,39,.30), transparent 60%),
+      radial-gradient(700px 500px at 95% 100%, rgba(255,255,255,.20), transparent 55%),
+      linear-gradient(135deg, #0C2555 0%, var(--bg) 55%, var(--bg-deep) 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
     font-family: var(--font-sans);
     color: var(--on-bg);
     -webkit-font-smoothing: antialiased;
@@ -43,6 +59,20 @@
     padding: 30px 22px 34px;
     font-size: 15px;
     line-height: 1.5;
+
+    /* Frosted glass. Height stays content-driven — never set one here, the
+       panel has to grow as legs are added and shrink on the success screen. */
+    background: var(--panel);
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
+    backdrop-filter: blur(var(--blur)) saturate(150%);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--panel-radius);
+  }
+
+  /* No backdrop-filter means nothing gets frosted and the panel would just
+     read as washed out. Fall back to the solid brand blue instead. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .cq { background: var(--bg); }
   }
 
   /* ============================================================

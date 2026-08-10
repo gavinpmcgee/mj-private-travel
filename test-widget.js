@@ -68,6 +68,20 @@ check("no html/body rule", !/(^|\n)\s*html, body/.test(css));
 check("no bare :focus-visible", !/(^|\n)\s*:focus-visible \{/.test(css));
 check("font inherits from page", /--font-sans:\s*inherit/.test(css));
 
+console.log("\nPanel treatment (full width, frosted, rounded)");
+const panelRule = css.slice(css.indexOf(".cq {\n    max-width"), css.indexOf("@supports not"));
+check("full width", /--max:\s*100%/.test(css));
+check("frosted background", /background:\s*var\(--panel\)/.test(panelRule));
+check("backdrop blur applied", /\n\s*backdrop-filter:\s*blur/.test(panelRule));
+check("webkit prefix present for Safari", /-webkit-backdrop-filter:\s*blur/.test(panelRule));
+check("corners rounded", /border-radius:\s*var\(--panel-radius\)/.test(panelRule));
+check("fallback when backdrop-filter is unsupported", css.includes("@supports not"));
+// the build injects its own `.cq { background: var(--bg) }` — the frosted rule must come after it
+check("frosted background beats the build's solid one",
+  css.indexOf("background: var(--panel)") > css.indexOf("background: var(--bg);"));
+// height must stay content-driven: the panel grows with legs and shrinks on success
+check("no fixed height on the panel", !/(^|\n)\s*(min-|max-)?height:/.test(panelRule));
+
 console.log("\nAirport autocomplete");
 const from = d.querySelector('[data-airport="from"]');
 from.value = "KTEB"; fire(from, "input");
@@ -210,6 +224,17 @@ function bootWidget(bodyHtml) {
 }
 
 (async function () {
+  console.log("\nPanel config via data attributes");
+  const dmCfg = bootWidget('<div id="charter-quote" data-max-width="880px" data-radius="24px" data-blur="30px"></div>');
+  const panel = dmCfg.window.document.querySelector("#charter-quote .cq");
+  check("data-max-width caps the panel", panel.style.getPropertyValue("--max"), "880px");
+  check("data-radius overrides corners", panel.style.getPropertyValue("--panel-radius"), "24px");
+  check("data-blur overrides frost", panel.style.getPropertyValue("--blur"), "30px");
+
+  const dmDefault = bootWidget('<div id="charter-quote"></div>');
+  check("no override leaves the panel full width",
+    dmDefault.window.document.querySelector("#charter-quote .cq").style.getPropertyValue("--max"), "");
+
   console.log("\nWebflow form bridge");
 
   const dm = bootWidget(mockWebflowForm(WF_FIELDS.concat(["Payload"])) +

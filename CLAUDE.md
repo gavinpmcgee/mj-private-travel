@@ -100,6 +100,11 @@ Submission has three modes, checked in this order:
 `build-embed.js` splits the HTML into CSS, markup, and JS, then applies targeted
 transforms so the widget can live inside someone else's page:
 
+- **Panel surface.** The build injects its own `.cq { background: var(--bg) }`
+  in place of the `html, body` rule. The source's `.cq` panel rule comes later
+  and overrides it with `var(--panel)` — the frosted translucent surface. If
+  you ever reorder these, the panel silently goes back to solid blue; the test
+  asserts the frosted declaration still wins.
 - **CSS scoping.** `:root` becomes `.cq`; the `* { box-sizing }` reset,
   `:focus-visible`, and the reduced-motion block get namespaced under `.cq`; the
   `html, body` rule becomes a `.cq` panel rule. Without this the widget's reset

@@ -132,14 +132,36 @@ setting:
 |---|---|---|
 | `data-webflow-form` | *(empty)* | Name of a Webflow form to fill and submit. Takes precedence over `data-webhook`. |
 | `data-webhook` | *(empty)* | Where submissions POST. Empty (and no form) = preview mode. |
-| `data-bg` | `#265ABE` | Panel background |
+| `data-bg` | `#265ABE` | Panel tint. The frosted surface is mixed from this. |
 | `data-bg-deep` | `#1B4593` | Dropdown and recessed surfaces |
 | `data-accent` | `#FFB627` | Progress, active route line, focus rings |
+| `data-max-width` | `100%` | Caps the panel width. Leave off for full width. |
+| `data-radius` | `12px` | The panel's corner radius |
+| `data-blur` | `18px` | Frosted glass blur strength |
 | `data-font` | *(inherits)* | Font override. Leave off to inherit the page. |
 | `data-font-url` | *(empty)* | Stylesheet URL to load a webfont |
 | `data-pax` | `2` | Starting passenger count |
 | `data-max-legs` | `6` | Cap on multi-city legs |
 | `data-ref-prefix` | `CQ` | Prefix on the reference number |
+
+## The frosted panel
+
+The panel is translucent with a `backdrop-filter` blur, so **it only looks
+frosted if there is something behind it to frost.** Put the Code Embed over a
+section with a photograph or a gradient. Over a flat colour it just reads as a
+slightly lighter block — the effect isn't broken, there's simply nothing to
+blur.
+
+It runs full width of whatever container it sits in. For an edge-to-edge panel
+the embed needs to be in a full-width section, not inside Webflow's default
+`Container`. To cap it instead, use `data-max-width="700px"`.
+
+Height is content-driven and always has been — the panel grows as legs are
+added and shrinks on the success screen. Don't set a height on the embed or its
+parent.
+
+Browsers without `backdrop-filter` fall back to the solid brand blue rather
+than a washed-out translucent panel.
 
 ## Fonts
 

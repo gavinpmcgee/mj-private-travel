@@ -49,6 +49,11 @@
     // instead of sent, so you can check its shape before wiring it up.
     webhookUrl: D.webhook || "",
 
+    // Show the raw outcome of a submission on screen. Diagnostic only —
+    // set data-debug="true" on the mount div while working out why a
+    // submission is failing, and take it off before handing over.
+    debug: !!D.debug,
+
     // Native Webflow form bridge — an alternative to webhookUrl that
     // needs no third-party automation. Name a hidden Webflow form on
     // the page and the widget fills it in and submits it, so entries
@@ -932,6 +937,43 @@
     field.value = value;
   }
 
+  /* Webflow's success and error divs are a guess at what happened. The
+     request itself knows. This observes Webflow's own XHR — it never alters
+     it — and puts the originals back the moment the submission resolves. */
+  function watchWebflowRequest(onResult) {
+    var XHR = window.XMLHttpRequest;
+    if (!XHR || !XHR.prototype || !XHR.prototype.send) return function () {};
+
+    var openOrig = XHR.prototype.open;
+    var sendOrig = XHR.prototype.send;
+    var spent = false;
+
+    function restore() {
+      XHR.prototype.open = openOrig;
+      XHR.prototype.send = sendOrig;
+    }
+
+    XHR.prototype.open = function (method, url) {
+      try { this.__cqUrl = String(url || ""); } catch (e) {}
+      return openOrig.apply(this, arguments);
+    };
+
+    XHR.prototype.send = function () {
+      var xhr = this;
+      if (/\/api\/v\d+\/form/i.test(xhr.__cqUrl || "")) {
+        xhr.addEventListener("loadend", function () {
+          if (spent) return;
+          spent = true;
+          restore();
+          onResult(xhr.status, (xhr.responseText || "").slice(0, 400));
+        });
+      }
+      return sendOrig.apply(this, arguments);
+    };
+
+    return function () { if (!spent) { spent = true; restore(); } };
+  }
+
   function submitViaWebflow(payload, onFail) {
     var form = findWebflowForm(CONFIG.webflowForm);
     if (!form) { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
@@ -987,23 +1029,48 @@
         " message is already visible before submitting. Set the form back to its normal state in the Designer — until then the widget can't reliably tell whether a submission worked.");
     }
 
+    var settled = false, poll = null, stopWatching = null, sawRequest = false;
+
+    function settle(ok, message, detail) {
+      if (settled) return;
+      settled = true;
+      if (poll) clearInterval(poll);
+      if (stopWatching) stopWatching();
+      if (ok) { finish(payload, false); return; }
+      if (detail && window.console && console.warn) console.warn("[charter-quote] " + detail);
+      onFail(CONFIG.debug && detail ? detail : message);
+    }
+
+    stopWatching = watchWebflowRequest(function (status, body) {
+      sawRequest = true;
+      if (status >= 200 && status < 300) { settle(true); return; }
+      settle(false,
+        status === 429
+          ? "We're getting a lot of requests right now. Please try again in a moment, or call us and we'll take the details over the phone."
+          : "That didn't send. Please try again, or call us and we'll take the details over the phone.",
+        "Webflow answered HTTP " + status + (body ? " — " + body : " with an empty body"));
+    });
+
     var btn = form.querySelector('input[type="submit"], button[type="submit"]');
     if (btn) btn.click();
     else if (window.jQuery) window.jQuery(form).trigger("submit");
-    else { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
+    else { settle(false, "This form isn't connected yet. Please call us and we'll take the details over the phone.", "The Webflow form has no submit button."); return; }
 
+    /* Fallback for the case where Webflow stops using XHR. The request, when
+       we can see it, always wins — these divs only decide if none appeared. */
     var waited = 0;
-    var poll = setInterval(function () {
+    poll = setInterval(function () {
       waited += 200;
-      if (!doneWas && wfShown(done)) { clearInterval(poll); finish(payload, false); return; }
+      if (sawRequest) return;
+      if (!doneWas && wfShown(done)) { settle(true); return; }
       if (!failWas && wfShown(fail)) {
-        clearInterval(poll);
-        onFail("That didn't send. Please try again, or call us and we'll take the details over the phone.");
+        settle(false, "That didn't send. Please try again, or call us and we'll take the details over the phone.",
+          "Webflow showed its error message, but no form request was seen leaving the page.");
         return;
       }
       if (waited >= 12000) {
-        clearInterval(poll);
-        onFail("That took too long to send. Please try again, or call us and we'll take the details over the phone.");
+        settle(false, "That took too long to send. Please try again, or call us and we'll take the details over the phone.",
+          "No response after 12s. No form request was seen leaving the page — the browser most likely refused to send it.");
       }
     }, 200);
   }

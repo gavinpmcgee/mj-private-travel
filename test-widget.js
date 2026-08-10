@@ -303,6 +303,58 @@ function bootWidget(bodyHtml) {
   check("long note truncated", noteVal.length, WF_FIELD_MAX);
   check("truncation is visible", /\[…\]$/.test(noteVal), true);
 
+  /* The HTTP response is the authority, not Webflow's success/error divs.
+     A mock XHR stands in for Webflow's own request. */
+  function withMockWebflowXhr(dm, status, body) {
+    const win = dm.window;
+    const Fake = function () { this.status = 0; this.__l = []; };
+    Fake.prototype.open = function (m, u) { this.__url = u; };
+    Fake.prototype.addEventListener = function (t, fn) { if (t === "loadend") this.__l.push(fn); };
+    Fake.prototype.send = function () {
+      const self = this;
+      setTimeout(function () {
+        self.status = status;
+        self.responseText = body;
+        self.__l.forEach(function (fn) { fn(); });
+      }, 20);
+    };
+    win.XMLHttpRequest = Fake;
+    return function fire() {
+      const x = new win.XMLHttpRequest();
+      x.open("POST", "https://webflow.com/api/v1/form/abc123");
+      x.send();
+    };
+  }
+
+  console.log("\nWebflow bridge — the HTTP response decides the outcome");
+  const dmOk = bootWidget(mockWebflowForm(WF_FIELDS) +
+    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  const fireOk = withMockWebflowXhr(dmOk, 200, "ok");
+  dmOk.window.document.querySelector('form[data-name="Charter Quote"]')
+    .addEventListener("submit", (e) => { e.preventDefault(); fireOk(); });
+  driveToSubmit(dmOk.window, dmOk.window.document);
+  await sleep(300);
+  check("HTTP 200 succeeds without any Webflow div appearing",
+    dmOk.window.document.getElementById("cqDone").classList.contains("is-open"), true);
+
+  const dmErr = bootWidget(mockWebflowForm(WF_FIELDS) +
+    '<div id="charter-quote" data-webflow-form="Charter Quote" data-debug="true"></div>');
+  const fireErr = withMockWebflowXhr(dmErr, 429, "rate limited");
+  dmErr.window.document.querySelector('form[data-name="Charter Quote"]')
+    .addEventListener("submit", (e) => { e.preventDefault(); fireErr(); });
+  driveToSubmit(dmErr.window, dmErr.window.document);
+  await sleep(300);
+  const errBox = dmErr.window.document.getElementById("cqFormErr");
+  check("a rejection is reported as failure", errBox.classList.contains("is-open"), true);
+  check("data-debug puts the status on screen", /HTTP 429/.test(errBox.textContent), true);
+  check("data-debug includes the response body", /rate limited/.test(errBox.textContent), true);
+  check("no false success on rejection",
+    dmErr.window.document.getElementById("cqDone").classList.contains("is-open"), false);
+
+  // XHR must be handed back untouched, or the rest of the page breaks
+  check("XMLHttpRequest restored after the request settles",
+    typeof dmErr.window.XMLHttpRequest === "function", true);
+
   /* Designer forms aren't always plain text inputs, and required flags on a
      hidden form fail invisibly. Neither may block a submission. */
   console.log("\nWebflow bridge — required flags, selects and checkboxes");

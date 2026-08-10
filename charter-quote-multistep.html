@@ -1359,9 +1359,39 @@
     }).join("\n");
   }
 
+  /* Webflow rejects over-long field values — a 774-character one was enough
+     to fail the whole submission. Everything written to the native form is
+     capped, so a chatty customer can't sink their own quote request. */
+  var WF_FIELD_MAX = 500;
+
+  /* Fields the widget fills only if the Designer form actually has them. */
+  var WF_OPTIONAL = { "Payload": 1 };
+
+  /* A machine-readable backstop, trimmed to what the named fields don't
+     already carry. Dropped entirely rather than risk a rejection. */
+  function compactJson(payload) {
+    var out = JSON.stringify({
+      ref: payload.reference,
+      at: payload.submittedAt,
+      type: payload.trip.type,
+      flex: payload.trip.datesFlexible,
+      legs: payload.trip.legs.map(function (l) {
+        return { n: l.sequence, from: l.fromIcao, to: l.toIcao, date: l.date, time: l.time };
+      }),
+      pax: payload.passengers,
+      aircraft: payload.aircraftPreference,
+      bags: payload.baggage,
+      pets: payload.pets,
+      catering: payload.cateringRequested,
+      ground: payload.groundTransportRequested,
+      contact: payload.contact
+    });
+    return out.length <= WF_FIELD_MAX ? out : "";
+  }
+
   function webflowFields(payload) {
     var c = payload.contact;
-    return {
+    var fields = {
       "Reference":        payload.reference,
       "Trip-Type":        payload.trip.type,
       "Itinerary":        itineraryText(payload),
@@ -1378,9 +1408,11 @@
       "Booking-For":      c.bookingFor,
       "SMS-Consent":      c.smsConsent ? "Yes" : "No",
       "Notes":            payload.notes,
-      "Page-URL":         payload.source.pageUrl,
-      "Payload":          JSON.stringify(payload)
+      "Page-URL":         payload.source.pageUrl
     };
+    var json = compactJson(payload);
+    if (json) fields["Payload"] = json;
+    return fields;
   }
 
   /* Webflow reveals these by setting an inline display, which we can read
@@ -1400,8 +1432,15 @@
     for (var key in values) {
       if (!Object.prototype.hasOwnProperty.call(values, key)) continue;
       var field = form.querySelector('[name="' + key + '"]');
-      if (!field) { missing.push(key); continue; }
-      field.value = values[key];
+      if (!field) { if (!WF_OPTIONAL[key]) missing.push(key); continue; }
+      var value = values[key];
+      if (value.length > WF_FIELD_MAX) {
+        value = value.slice(0, WF_FIELD_MAX - 4) + " […]";
+        if (window.console && console.warn) {
+          console.warn("[charter-quote] " + key + " was truncated to " + WF_FIELD_MAX + " characters for Webflow.");
+        }
+      }
+      field.value = value;
     }
     if (missing.length && window.console && console.warn) {
       console.warn("[charter-quote] Webflow form has no field named: " + missing.join(", "));

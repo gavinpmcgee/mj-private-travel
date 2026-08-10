@@ -65,8 +65,13 @@ exactly**, because that's what the widget looks for:
 Reference   Trip-Type   Itinerary   Dates-Flexible   Passengers
 Aircraft    Baggage     Pets        Catering         Ground-Transport
 Name        Email       Phone       Booking-For      SMS-Consent
-Notes       Page-URL    Payload
+Notes       Page-URL
 ```
+
+There's one **optional** extra field, `Payload`, holding a compact JSON copy of
+the submission. Add it only if something downstream needs to parse the data —
+it's not needed for reading quotes in Webflow, and it's the field most likely
+to run into the length limit below.
 
 Then set the Form Block's display to **none** in the Designer, and point the
 widget at it:
@@ -85,13 +90,26 @@ Three things to get right:
 - **Don't mark any field required.** The form is hidden, so a browser
   validation error on it can't be seen or dismissed — the submit just dies.
 - **Don't add reCAPTCHA** to this form. It can't be solved from a hidden form.
-- **Make `Itinerary`, `Notes`, and `Payload` textareas**, not single-line
-  inputs. Multi-city trips put one leg per line in `Itinerary`, and `Payload`
-  holds the full JSON as a backstop.
+- **Make `Itinerary` and `Notes` textareas**, not single-line inputs.
+  Multi-city trips put one leg per line in `Itinerary`.
 
-Webflow caps form submissions by plan — check the site plan before launch if
-volume matters. `Payload` means no submission ever loses detail even if you
-skip some of the individual fields.
+### Webflow's field length limit
+
+Webflow rejects the whole submission if any single field value is too long —
+and it gives no useful reason, just its generic error. A 774-character value
+was enough to trigger it in testing.
+
+So the widget caps everything it writes at **500 characters**, adding ` […]` to
+anything it trims, and logs which field it trimmed to the browser console. A
+customer writing an essay in the notes box can no longer sink their own quote
+request.
+
+The `Payload` field follows the same rule: it's dropped rather than truncated,
+since half a JSON object is worth nothing. On long multi-city trips it will
+come through blank by design — `Itinerary` still lists every leg.
+
+Webflow also caps *how many* submissions you can receive, by site plan. Check
+that before launch if volume matters.
 
 ### Option B — webhook to Make / Zapier
 

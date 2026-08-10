@@ -153,14 +153,17 @@ check("contact email", p.contact.email, "test@example.com");
 const BUNDLE = fs.readFileSync("charter-quote.js", "utf8");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/* Webflow rejects long field values, so the widget caps everything it writes */
+const WF_FIELD_MAX = 500;
+
 const WF_FIELDS = ["Reference", "Trip-Type", "Itinerary", "Dates-Flexible", "Passengers",
   "Aircraft", "Baggage", "Pets", "Catering", "Ground-Transport", "Name", "Email",
-  "Phone", "Booking-For", "SMS-Consent", "Notes", "Page-URL", "Payload"];
+  "Phone", "Booking-For", "SMS-Consent", "Notes", "Page-URL"];
 
-function mockWebflowForm() {
+function mockWebflowForm(fields) {
   return '<div class="w-form">' +
     '<form id="wf-form-Charter" name="wf-form-Charter" data-name="Charter Quote">' +
-    WF_FIELDS.map((n) => `<input name="${n}">`).join("") +
+    fields.map((n) => `<input name="${n}">`).join("") +
     '<input type="submit" value="Submit">' +
     '</form>' +
     '<div class="w-form-done">Thank you</div>' +
@@ -169,7 +172,7 @@ function mockWebflowForm() {
 }
 
 /* walks the four steps and submits — mirrors the manual flow above */
-function driveToSubmit(win, doc) {
+function driveToSubmit(win, doc, notes) {
   const f = (el, t) => el.dispatchEvent(new win.Event(t, { bubbles: true }));
   const c = (el) => el.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
   const id = (x) => doc.getElementById(x);
@@ -192,7 +195,7 @@ function driveToSubmit(win, doc) {
   id("cqName").value = "Test User";        f(id("cqName"), "input");
   id("cqEmail").value = "test@example.com"; f(id("cqEmail"), "input");
   id("cqPhone").value = "2035551234";      f(id("cqPhone"), "input");
-  id("cqNotes").value = "Wheels up early"; f(id("cqNotes"), "input");
+  id("cqNotes").value = notes || "Wheels up early"; f(id("cqNotes"), "input");
   go();                                    // -> review
   go();                                    // final submit
 }
@@ -209,7 +212,7 @@ function bootWidget(bodyHtml) {
 (async function () {
   console.log("\nWebflow form bridge");
 
-  const dm = bootWidget(mockWebflowForm() +
+  const dm = bootWidget(mockWebflowForm(WF_FIELDS.concat(["Payload"])) +
     '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
   const w2 = dm.window, d2 = w2.document;
 
@@ -228,8 +231,13 @@ function bootWidget(bodyHtml) {
   check("passengers written", val("Passengers"), "4");
   check("notes written", val("Notes"), "Wheels up early");
   check("itinerary flattened", /1\. KTEB -> KPBI\s+2026-09-14/.test(val("Itinerary")), true);
-  check("full payload attached", JSON.parse(val("Payload")).trip.legs[0].toIcao, "KPBI");
   check("no field left unmapped", WF_FIELDS.every((n) => val(n) !== ""), true);
+
+  // the JSON backstop must stay under Webflow's field limit, or it's dropped
+  check("payload backstop attached", JSON.parse(val("Payload")).legs[0].to, "KPBI");
+  check("payload within Webflow's limit", val("Payload").length <= WF_FIELD_MAX, true);
+  check("every field within Webflow's limit",
+    WF_FIELDS.concat(["Payload"]).every((n) => val(n).length <= WF_FIELD_MAX), true);
 
   // widget must wait for Webflow's confirmation, not assume success
   check("waits for Webflow to confirm", d2.getElementById("cqDone").classList.contains("is-open"), false);
@@ -239,6 +247,36 @@ function bootWidget(bodyHtml) {
   check("success panel after Webflow confirms",
     d2.getElementById("cqDone").classList.contains("is-open"), true);
   check("no preview payload dumped", d2.getElementById("cqDebug").hidden, true);
+
+  /* Payload is optional — a Designer form without it must still go through.
+     This is the shape that broke in production: the field was removed to get
+     under Webflow's length limit. */
+  console.log("\nWebflow bridge — form without the optional Payload field");
+  const dmNoP = bootWidget(mockWebflowForm(WF_FIELDS) +
+    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  const fNoP = dmNoP.window.document.querySelector('form[data-name="Charter Quote"]');
+  let submittedNoP = 0;
+  fNoP.addEventListener("submit", (e) => { e.preventDefault(); submittedNoP++; });
+  driveToSubmit(dmNoP.window, dmNoP.window.document);
+  await sleep(300);
+  check("submits without a Payload field", submittedNoP, 1);
+  check("named fields still populated", fNoP.querySelector('[name="Email"]').value, "test@example.com");
+  dmNoP.window.document.querySelector(".w-form-done").style.display = "block";
+  await sleep(400);
+  check("succeeds without a Payload field",
+    dmNoP.window.document.getElementById("cqDone").classList.contains("is-open"), true);
+
+  /* An over-long note must be trimmed, not passed through to be rejected */
+  console.log("\nWebflow bridge — over-long note");
+  const dmLong = bootWidget(mockWebflowForm(WF_FIELDS) +
+    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  const fLong = dmLong.window.document.querySelector('form[data-name="Charter Quote"]');
+  fLong.addEventListener("submit", (e) => e.preventDefault());
+  driveToSubmit(dmLong.window, dmLong.window.document, "N".repeat(3000));
+  await sleep(300);
+  const noteVal = fLong.querySelector('[name="Notes"]').value;
+  check("long note truncated", noteVal.length, WF_FIELD_MAX);
+  check("truncation is visible", /\[…\]$/.test(noteVal), true);
 
   // a missing form must surface an error, never a false success
   console.log("\nWebflow bridge — form missing from page");

@@ -76,8 +76,15 @@ Submission has three modes, checked in this order:
    `name`, and clicks its submit button so Webflow's own jQuery handler picks it
    up. Entries land in Webflow's Form Submissions panel — no webhook, no Make.
    Field names are fixed in `webflowFields()`; `trip.legs` is flattened to text
-   by `itineraryText()` since a native form can't hold an array, and the whole
-   JSON payload also goes into a `Payload` field as a backstop.
+   by `itineraryText()` since a native form can't hold an array.
+
+   **Webflow rejects the entire submission if one field value is too long**,
+   with only its generic error to show for it — a 774-character value did it in
+   production. Everything written is therefore capped at `WF_FIELD_MAX` (500)
+   and marked with ` […]`. The `Payload` field is listed in `WF_OPTIONAL`: it
+   carries a trimmed JSON copy from `compactJson()`, is dropped rather than
+   truncated when it won't fit, and produces no warning when the Designer form
+   omits it. Don't reintroduce the full payload here.
 
    It waits for Webflow's `.w-form-done` before calling `finish()`, so a
    rejected submission surfaces an error instead of a false success. Detection
@@ -237,6 +244,7 @@ Gavin does this in Make's browser UI.
 | Build throws `no-op replacement -> X` | A source edit broke that transform's pattern. Fix the pattern in `build-embed.js`. |
 | Form submits but nothing arrives in Make | Preview mode — `data-webhook` is missing or empty on the mount div. |
 | Webflow bridge: submit hangs, then times out | A field in the hidden Webflow form is marked **required**, or reCAPTCHA is on it. Browser validation blocks a hidden form and can't show the error. |
+| Webflow bridge: "That didn't send" every time | Webflow returned an error. Check a field value isn't over-long (see `WF_FIELD_MAX`) and that the site plan's submission quota isn't used up. The reason is only visible in the Network tab's response, never on the page. |
 | Webflow bridge: some fields arrive blank | Designer field name doesn't match `webflowFields()`. The console logs exactly which names it couldn't find. |
 | Two widgets on one page conflict | Not supported. The markup uses ids. One instance per page. |
 

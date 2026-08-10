@@ -305,13 +305,17 @@ function bootWidget(bodyHtml) {
 
   /* The HTTP response is the authority, not Webflow's success/error divs.
      A mock XHR stands in for Webflow's own request. */
-  function withMockWebflowXhr(dm, status, body) {
+  function withMockWebflowXhr(dm, statuses, body) {
+    const queue = [].concat(statuses);
     const win = dm.window;
+    const sent = { count: 0 };
     const Fake = function () { this.status = 0; this.__l = []; };
     Fake.prototype.open = function (m, u) { this.__url = u; };
     Fake.prototype.addEventListener = function (t, fn) { if (t === "loadend") this.__l.push(fn); };
     Fake.prototype.send = function () {
       const self = this;
+      const status = queue.length > 1 ? queue.shift() : queue[0];
+      sent.count++;
       setTimeout(function () {
         self.status = status;
         self.responseText = body;
@@ -319,17 +323,66 @@ function bootWidget(bodyHtml) {
       }, 20);
     };
     win.XMLHttpRequest = Fake;
-    return function fire() {
+    // stands in for Webflow's own handler firing the request on submit
+    return Object.assign(function fire() {
       const x = new win.XMLHttpRequest();
       x.open("POST", "https://webflow.com/api/v1/form/abc123");
       x.send();
-    };
+    }, { sent });
   }
+
+  /* Webflow's Turnstile check drops a token in asynchronously. Submitting
+     before it lands is answered with 422, so the widget must wait. */
+  console.log("\nWebflow bridge — waits for the spam-check token");
+  const dmTok = bootWidget(mockWebflowForm(WF_FIELDS) +
+    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  let token = "";
+  dmTok.window.turnstile = { getResponse: () => token };
+  const fireTok = withMockWebflowXhr(dmTok, [200], "ok");
+  dmTok.window.document.querySelector('form[data-name="Charter Quote"]')
+    .addEventListener("submit", (e) => { e.preventDefault(); fireTok(); });
+  driveToSubmit(dmTok.window, dmTok.window.document);
+  await sleep(400);
+  check("holds off while the token is missing", fireTok.sent.count, 0);
+  check("no success reported while waiting",
+    dmTok.window.document.getElementById("cqDone").classList.contains("is-open"), false);
+  token = "0.abc-turnstile-token";
+  await sleep(500);
+  check("submits once the token lands", fireTok.sent.count, 1);
+  check("succeeds after waiting",
+    dmTok.window.document.getElementById("cqDone").classList.contains("is-open"), true);
+
+  /* A 422 that slips through anyway must be retried once, not surfaced. */
+  console.log("\nWebflow bridge — retries once on 422");
+  const dm422 = bootWidget(mockWebflowForm(WF_FIELDS) +
+    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  const fire422 = withMockWebflowXhr(dm422, [422, 200], '{"msg":"Could not process the form submission","code":422}');
+  dm422.window.document.querySelector('form[data-name="Charter Quote"]')
+    .addEventListener("submit", (e) => { e.preventDefault(); fire422(); });
+  driveToSubmit(dm422.window, dm422.window.document);
+  await sleep(500);
+  check("retried after the 422", fire422.sent.count, 2);
+  check("retry succeeds", dm422.window.document.getElementById("cqDone").classList.contains("is-open"), true);
+  check("customer never saw the 422",
+    dm422.window.document.getElementById("cqFormErr").classList.contains("is-open"), false);
+
+  /* But it must give up rather than hammer Webflow forever. */
+  console.log("\nWebflow bridge — gives up after one retry");
+  const dmDead = bootWidget(mockWebflowForm(WF_FIELDS) +
+    '<div id="charter-quote" data-webflow-form="Charter Quote" data-debug="true"></div>');
+  const fireDead = withMockWebflowXhr(dmDead, [422], '{"code":422}');
+  dmDead.window.document.querySelector('form[data-name="Charter Quote"]')
+    .addEventListener("submit", (e) => { e.preventDefault(); fireDead(); });
+  driveToSubmit(dmDead.window, dmDead.window.document);
+  await sleep(600);
+  check("stops at two attempts", fireDead.sent.count, 2);
+  check("reports the failure", dmDead.window.document.getElementById("cqFormErr").classList.contains("is-open"), true);
+  check("debug shows the 422", /HTTP 422/.test(dmDead.window.document.getElementById("cqFormErr").textContent), true);
 
   console.log("\nWebflow bridge — the HTTP response decides the outcome");
   const dmOk = bootWidget(mockWebflowForm(WF_FIELDS) +
     '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  const fireOk = withMockWebflowXhr(dmOk, 200, "ok");
+  const fireOk = withMockWebflowXhr(dmOk, [200], "ok");
   dmOk.window.document.querySelector('form[data-name="Charter Quote"]')
     .addEventListener("submit", (e) => { e.preventDefault(); fireOk(); });
   driveToSubmit(dmOk.window, dmOk.window.document);
@@ -339,7 +392,7 @@ function bootWidget(bodyHtml) {
 
   const dmErr = bootWidget(mockWebflowForm(WF_FIELDS) +
     '<div id="charter-quote" data-webflow-form="Charter Quote" data-debug="true"></div>');
-  const fireErr = withMockWebflowXhr(dmErr, 429, "rate limited");
+  const fireErr = withMockWebflowXhr(dmErr, [429], "rate limited");
   dmErr.window.document.querySelector('form[data-name="Charter Quote"]')
     .addEventListener("submit", (e) => { e.preventDefault(); fireErr(); });
   driveToSubmit(dmErr.window, dmErr.window.document);

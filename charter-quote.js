@@ -974,6 +974,47 @@
     return function () { if (!spent) { spent = true; restore(); } };
   }
 
+  /* Webflow guards forms with Cloudflare Turnstile. It solves an invisible
+     challenge in the background and drops a token into a hidden input; submit
+     before that lands and Webflow answers 422 — which is why a submission
+     could fail on the first try and succeed on a slower second one. Nothing
+     here forces or fakes the check. It waits for the token the page was
+     already going to produce, then submits. */
+  var SPAM_TOKEN_WAIT = 12000;
+
+  function spamToken() {
+    var el = document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i], input[name*="captcha" i]');
+    if (el && el.value) return el.value;
+    try {
+      if (window.turnstile && typeof window.turnstile.getResponse === "function") {
+        return window.turnstile.getResponse() || "";
+      }
+    } catch (e) {}
+    return "";
+  }
+
+  function spamCheckPresent() {
+    return !!(window.turnstile || window.grecaptcha ||
+      document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i]'));
+  }
+
+  function whenSpamTokenReady(cb) {
+    if (!spamCheckPresent() || spamToken()) { cb(); return; }
+    var waited = 0;
+    var tick = setInterval(function () {
+      waited += 250;
+      if (spamToken()) { clearInterval(tick); cb(); return; }
+      if (waited >= SPAM_TOKEN_WAIT) {
+        clearInterval(tick);
+        if (window.console && console.warn) {
+          console.warn("[charter-quote] The page's spam check produced no token after " +
+            (SPAM_TOKEN_WAIT / 1000) + "s. Submitting without one — Webflow may answer 422.");
+        }
+        cb();
+      }
+    }, 250);
+  }
+
   function submitViaWebflow(payload, onFail) {
     var form = findWebflowForm(CONFIG.webflowForm);
     if (!form) { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
@@ -1020,59 +1061,79 @@
     var fail = wrap ? wrap.querySelector(".w-form-fail") : null;
 
     /* The Designer publishes whichever form state was left showing, so either
-       of these can already be visible before anything is submitted. Only a
-       change from the pre-submit state tells us anything. */
-    var doneWas = wfShown(done);
-    var failWas = wfShown(fail);
-    if ((doneWas || failWas) && window.console && console.warn) {
-      console.warn("[charter-quote] Webflow's " + (doneWas ? "success" : "error") +
+       of these can already be visible before anything is submitted. */
+    if ((wfShown(done) || wfShown(fail)) && window.console && console.warn) {
+      console.warn("[charter-quote] Webflow's " + (wfShown(done) ? "success" : "error") +
         " message is already visible before submitting. Set the form back to its normal state in the Designer — until then the widget can't reliably tell whether a submission worked.");
     }
 
-    var settled = false, poll = null, stopWatching = null, sawRequest = false;
+    var attempts = 0;
 
-    function settle(ok, message, detail) {
-      if (settled) return;
-      settled = true;
-      if (poll) clearInterval(poll);
-      if (stopWatching) stopWatching();
-      if (ok) { finish(payload, false); return; }
-      if (detail && window.console && console.warn) console.warn("[charter-quote] " + detail);
-      onFail(CONFIG.debug && detail ? detail : message);
+    function attempt() {
+      attempts++;
+
+      /* Re-read each time: a rejected attempt leaves Webflow's error message
+         showing, and on a retry that's old news rather than a fresh verdict. */
+      var doneWas = wfShown(done);
+      var failWas = wfShown(fail);
+      var settled = false, poll = null, stopWatching = null, sawRequest = false;
+
+      function settle(ok, message, detail) {
+        if (settled) return;
+        settled = true;
+        if (poll) clearInterval(poll);
+        if (stopWatching) stopWatching();
+        if (ok) { finish(payload, false); return; }
+
+        /* 422 is Webflow's answer when the spam check had no token yet. One
+           retry, once a token exists, is all it has ever needed. */
+        if (detail && detail.indexOf("HTTP 422") !== -1 && attempts < 2) {
+          if (window.console && console.warn) {
+            console.warn("[charter-quote] " + detail + " — waiting for the spam-check token, then trying once more.");
+          }
+          whenSpamTokenReady(attempt);
+          return;
+        }
+
+        if (detail && window.console && console.warn) console.warn("[charter-quote] " + detail);
+        onFail(CONFIG.debug && detail ? detail : message);
+      }
+
+      stopWatching = watchWebflowRequest(function (status, body) {
+        sawRequest = true;
+        if (status >= 200 && status < 300) { settle(true); return; }
+        settle(false,
+          status === 429
+            ? "We're getting a lot of requests right now. Please try again in a moment, or call us and we'll take the details over the phone."
+            : "That didn't send. Please try again, or call us and we'll take the details over the phone.",
+          "Webflow answered HTTP " + status + (body ? " — " + body : " with an empty body"));
+      });
+
+      var btn = form.querySelector('input[type="submit"], button[type="submit"]');
+      if (btn) btn.click();
+      else if (window.jQuery) window.jQuery(form).trigger("submit");
+      else { settle(false, "This form isn't connected yet. Please call us and we'll take the details over the phone.", "The Webflow form has no submit button."); return; }
+
+      /* Fallback for the case where Webflow stops using XHR. The request, when
+         we can see it, always wins — these divs only decide if none appeared. */
+      var waited = 0;
+      poll = setInterval(function () {
+        waited += 200;
+        if (sawRequest) return;
+        if (!doneWas && wfShown(done)) { settle(true); return; }
+        if (!failWas && wfShown(fail)) {
+          settle(false, "That didn't send. Please try again, or call us and we'll take the details over the phone.",
+            "Webflow showed its error message, but no form request was seen leaving the page.");
+          return;
+        }
+        if (waited >= 12000) {
+          settle(false, "That took too long to send. Please try again, or call us and we'll take the details over the phone.",
+            "No response after 12s. No form request was seen leaving the page — the browser most likely refused to send it.");
+        }
+      }, 200);
     }
 
-    stopWatching = watchWebflowRequest(function (status, body) {
-      sawRequest = true;
-      if (status >= 200 && status < 300) { settle(true); return; }
-      settle(false,
-        status === 429
-          ? "We're getting a lot of requests right now. Please try again in a moment, or call us and we'll take the details over the phone."
-          : "That didn't send. Please try again, or call us and we'll take the details over the phone.",
-        "Webflow answered HTTP " + status + (body ? " — " + body : " with an empty body"));
-    });
-
-    var btn = form.querySelector('input[type="submit"], button[type="submit"]');
-    if (btn) btn.click();
-    else if (window.jQuery) window.jQuery(form).trigger("submit");
-    else { settle(false, "This form isn't connected yet. Please call us and we'll take the details over the phone.", "The Webflow form has no submit button."); return; }
-
-    /* Fallback for the case where Webflow stops using XHR. The request, when
-       we can see it, always wins — these divs only decide if none appeared. */
-    var waited = 0;
-    poll = setInterval(function () {
-      waited += 200;
-      if (sawRequest) return;
-      if (!doneWas && wfShown(done)) { settle(true); return; }
-      if (!failWas && wfShown(fail)) {
-        settle(false, "That didn't send. Please try again, or call us and we'll take the details over the phone.",
-          "Webflow showed its error message, but no form request was seen leaving the page.");
-        return;
-      }
-      if (waited >= 12000) {
-        settle(false, "That took too long to send. Please try again, or call us and we'll take the details over the phone.",
-          "No response after 12s. No form request was seen leaving the page — the browser most likely refused to send it.");
-      }
-    }, 200);
+    whenSpamTokenReady(attempt);
   }
 
   formEl.addEventListener("submit", function (e) {

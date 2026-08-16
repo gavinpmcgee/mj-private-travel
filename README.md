@@ -73,25 +73,33 @@ the submission. Add it only if something downstream needs to parse the data —
 it's not needed for reading quotes in Webflow, and it's the field most likely
 to run into the length limit below.
 
-Then set the Form Block's display to **none** in the Designer, and point the
-widget at it:
+Then leave the Form Block **visible** in the Designer and point the widget at
+it:
 
 ```html
 <div id="charter-quote" data-webflow-form="Charter Quote"></div>
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.1.0/charter-quote.js" defer></script>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.6.0/charter-quote.js" defer></script>
 ```
 
-The widget fills the hidden form in and submits it for you. It waits for
-Webflow's own success confirmation before showing the success panel, so a
-rejected submission shows an error rather than a false "thank you".
+The widget takes the form off the page for you: on load it moves the whole Form
+Block to the end of `<body>` and parks it far off-screen, so nobody ever sees
+it. Then it fills the fields in and submits it, and decides success or failure
+from the status Webflow's own request comes back with.
 
-Three things to get right:
+**Don't set the Form Block's display to none yourself.** Webflow protects forms
+with Cloudflare Turnstile, and Turnstile refuses to run inside a hidden
+element — so a hidden form never gets its spam-check token and Webflow rejects
+every submission with a 422. Off-screen works; hidden does not. If some parent
+section on the page is hidden, the widget's move to `<body>` gets the form out
+of it, but it's cleaner not to nest it in one.
 
-- **Don't mark any field required.** The form is hidden, so a browser
-  validation error on it can't be seen or dismissed — the submit just dies.
-- **Don't add reCAPTCHA** to this form. It can't be solved from a hidden form.
+Two more things to get right:
+
 - **Make `Itinerary` and `Notes` textareas**, not single-line inputs.
   Multi-city trips put one leg per line in `Itinerary`.
+- **Leave the form in its normal state** when you publish — not showing the
+  success or error message. Field-level `required` flags are harmless; the
+  widget strips them, having already validated everything the customer typed.
 
 ### Webflow's field length limit
 

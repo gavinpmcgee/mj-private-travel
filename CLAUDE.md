@@ -86,10 +86,20 @@ Submission has three modes, checked in this order:
    truncated when it won't fit, and produces no warning when the Designer form
    omits it. Don't reintroduce the full payload here.
 
-   It waits for Webflow's `.w-form-done` before calling `finish()`, so a
-   rejected submission surfaces an error instead of a false success. Detection
-   reads the **inline** `display` Webflow sets, not `offsetParent` — the form
-   block is hidden on the page, so `offsetParent` is null even on success.
+   The outcome is decided by the **HTTP status** of Webflow's own form request,
+   which `watchWebflowRequest()` observes without altering. `.w-form-done` and
+   `.w-form-fail` are only a fallback for the case where Webflow stops using
+   XHR; detection there reads the **inline** `display` Webflow sets, and
+   baselines whichever state was already visible when the page was published.
+
+   **The Webflow form must stay rendered.** `parkWebflowPlumbing()` moves the
+   whole `.w-form` block to `<body>` and parks it off-screen with `!important`,
+   rather than hiding it. Webflow guards forms with Cloudflare Turnstile, and
+   Turnstile will not run inside a `display:none` subtree — a hidden form never
+   gets a token, so Webflow answers **422** to every attempt no matter how long
+   `whenSpamTokenReady()` waits. This is what broke v1.5.2. Don't go back to
+   `display:none`, and don't call `turnstile.execute()` to hurry it along —
+   executing it renders the challenge, which is exactly what must stay unseen.
 
 2. **Webhook** (`CONFIG.webhookUrl`). POSTs the JSON payload.
 3. **Preview mode** (neither set). Shows the payload on screen instead of
@@ -249,7 +259,7 @@ Gavin does this in Make's browser UI.
 | Build throws `no-op replacement -> X` | A source edit broke that transform's pattern. Fix the pattern in `build-embed.js`. |
 | Form submits but nothing arrives in Make | Preview mode — `data-webhook` is missing or empty on the mount div. |
 | Webflow bridge: submit hangs, then times out | A field in the hidden Webflow form is marked **required**, or reCAPTCHA is on it. Browser validation blocks a hidden form and can't show the error. |
-| Webflow bridge: "That didn't send" every time | Webflow returned an error. Check a field value isn't over-long (see `WF_FIELD_MAX`) and that the site plan's submission quota isn't used up. The reason is only visible in the Network tab's response, never on the page. |
+| Webflow bridge: "That didn't send" every time | Webflow returned an error. Set `data-debug="true"` on the mount div to put the status on screen. **HTTP 422** = the spam check produced no token; the form block is being hidden by something other than the widget, so Turnstile can't run — unhide it, or turn spam protection off for the form in Webflow's site settings. Otherwise check a field value isn't over-long (see `WF_FIELD_MAX`) and that the site plan's submission quota isn't used up. |
 | Webflow bridge: some fields arrive blank | Designer field name doesn't match `webflowFields()`. The console logs exactly which names it couldn't find. |
 | Two widgets on one page conflict | Not supported. The markup uses ids. One instance per page. |
 

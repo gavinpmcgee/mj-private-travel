@@ -1526,8 +1526,12 @@
      before that lands and Webflow answers 422 — which is why a submission
      could fail on the first try and succeed on a slower second one. Nothing
      here forces or fakes the check. It waits for the token the page was
-     already going to produce, then submits. */
-  var SPAM_TOKEN_WAIT = 4000;
+     already going to produce, then submits.
+
+     The token normally lands seconds after page load, long before anyone has
+     filled in four steps — so this wait should never be reached. When it is,
+     the check is being prevented from running rather than being slow. */
+  var SPAM_TOKEN_WAIT = 8000;
 
   function spamToken() {
     var el = document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i], input[name*="captcha" i]');
@@ -1560,7 +1564,11 @@
         clearInterval(tick);
         if (window.console && console.warn) {
           console.warn("[charter-quote] The page's spam check produced no token after " +
-            (SPAM_TOKEN_WAIT / 1000) + "s. Submitting without one — Webflow may answer 422.");
+            (SPAM_TOKEN_WAIT / 1000) + "s, so Webflow will most likely answer 422. " +
+            "The check needs the Webflow form to be rendered — it can't run in a " +
+            "display:none block. If the form is hidden by anything other than this " +
+            "widget, unhide it, or turn spam protection off for this form in " +
+            "Webflow's site settings.");
         }
         cb();
       }
@@ -1568,10 +1576,33 @@
   }
 
   /* We drive this form, so nobody should ever see it — not the fields, not
-     Webflow's own "thank you", not a challenge widget it decides to render.
-     Hiding the Form Block in the Designer covers the fields; this covers the
-     rest, including anything injected into the block after page load. */
-  function hideWebflowPlumbing(form) {
+     Webflow's own "thank you", not the spam-check widget.
+
+     It has to stay *rendered*, though. Cloudflare Turnstile won't run inside
+     a display:none subtree, so a form hidden that way never receives a token
+     and Webflow answers 422 to every attempt — no matter how long we wait.
+     Parking it off-screen keeps it invisible and still lets the check work.
+
+     The block moves to <body> first, so nothing done to its original
+     container in the Designer — display:none, overflow:hidden, a collapsed
+     section — can hide or clip it again. Webflow binds its submit handler to
+     the form element itself, so relocating the block doesn't disturb it. */
+  var WF_PARKED = "__cqParked";
+
+  var WF_PARK_STYLE = {
+    position:   "absolute",
+    left:       "-99999px",
+    top:        "0",
+    width:      "400px",   /* Turnstile declines to render in a cramped box */
+    height:     "300px",
+    overflow:   "visible",
+    display:    "block",
+    visibility: "visible",
+    opacity:    "1",
+    margin:     "0"
+  };
+
+  function parkWebflowPlumbing(form) {
     var node = form, hops = 0;
     while (node && hops < 4) {
       if (node.className && String(node.className).indexOf("w-form") !== -1) break;
@@ -1579,22 +1610,37 @@
       hops++;
     }
     var block = node && node.style ? node : form;
-    if (block.style.display !== "none") block.style.display = "none";
+    if (block[WF_PARKED]) return block;
+    block[WF_PARKED] = true;
+
+    if (document.body && block.parentNode !== document.body) document.body.appendChild(block);
+
+    for (var prop in WF_PARK_STYLE) {
+      if (!Object.prototype.hasOwnProperty.call(WF_PARK_STYLE, prop)) continue;
+      block.style.setProperty(prop, WF_PARK_STYLE[prop], "important");
+    }
+
+    /* Off-screen but rendered means it's still in the tab order, and nobody
+       should be able to tab into a form they can't see. */
+    var focusable = block.querySelectorAll("input, select, textarea, button, a[href]");
+    for (var i = 0; i < focusable.length; i++) focusable[i].setAttribute("tabindex", "-1");
+
     return block;
   }
 
-  /* Do it at mount too — waiting until submit leaves a window in which the
-     block can surface on the page. */
+  /* Do it at mount, not at submit. Waiting leaves a window in which the block
+     can surface on the page, and the spam check needs the whole time between
+     page load and submit to produce its token. */
   if (CONFIG.webflowForm) {
     var bridgedForm = findWebflowForm(CONFIG.webflowForm);
-    if (bridgedForm) hideWebflowPlumbing(bridgedForm);
+    if (bridgedForm) parkWebflowPlumbing(bridgedForm);
   }
 
   function submitViaWebflow(payload, onFail) {
     var form = findWebflowForm(CONFIG.webflowForm);
     if (!form) { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
 
-    hideWebflowPlumbing(form);
+    parkWebflowPlumbing(form);
 
     var values = webflowFields(payload);
     var missing = [];
@@ -1666,7 +1712,9 @@
            retry, once a token exists, is all it has ever needed. */
         if (detail && detail.indexOf("HTTP 422") !== -1 && attempts < 2) {
           if (window.console && console.warn) {
-            console.warn("[charter-quote] " + detail + " — waiting for the spam-check token, then trying once more.");
+            console.warn("[charter-quote] " + detail + (spamToken()
+              ? " — trying once more."
+              : " — and the spam check still has no token. Waiting for one, then trying once more."));
           }
           whenSpamTokenReady(attempt);
           return;

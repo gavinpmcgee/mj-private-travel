@@ -332,16 +332,32 @@ function bootWidget(bodyHtml) {
   }
 
   /* The customer must never see the plumbing, and we must never make
-     Cloudflare render its challenge by executing it ourselves. */
-  console.log("\nWebflow bridge — keeps its plumbing out of sight");
-  const dmHide = bootWidget(mockWebflowForm(WF_FIELDS) +
+     Cloudflare render its challenge by executing it ourselves. It has to stay
+     rendered all the same — Turnstile won't run inside display:none, and a
+     form with no token is answered 422 however long we wait for one. */
+  console.log("\nWebflow bridge — parks its plumbing off-screen, still rendered");
+  const dmHide = bootWidget('<section style="display:none">' +
+    mockWebflowForm(WF_FIELDS) + '</section>' +
     '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
   let executed = 0;
   dmHide.window.turnstile = { getResponse: () => "", execute: () => { executed++; } };
   await sleep(700);
-  check("the form block is hidden at mount",
-    dmHide.window.document.querySelector(".w-form").style.display, "none");
+  const parked = dmHide.window.document.querySelector(".w-form");
+  check("the block is not display:none", parked.style.display, "block");
+  check("the block is parked off-screen", parked.style.left, "-99999px");
+  check("...with !important, so Designer styles can't win",
+    parked.style.getPropertyPriority("display"), "important");
+  check("moved out of the hidden container it was published in",
+    parked.parentNode, dmHide.window.document.body);
+  check("its fields are out of the tab order",
+    parked.querySelector('input[name="Reference"]').getAttribute("tabindex"), "-1");
   check("never executes the challenge itself", executed, 0);
+
+  /* Parking is idempotent — submitting must not relocate it a second time. */
+  driveToSubmit(dmHide.window, dmHide.window.document);
+  await sleep(300);
+  check("still parked once, in the same place",
+    dmHide.window.document.querySelectorAll(".w-form").length, 1);
 
   /* Webflow's Turnstile check drops a token in asynchronously. Submitting
      before it lands is answered with 422, so the widget must wait. */

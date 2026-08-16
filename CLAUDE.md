@@ -94,12 +94,26 @@ Submission has three modes, checked in this order:
 
    **The Webflow form must stay rendered.** `parkWebflowPlumbing()` moves the
    whole `.w-form` block to `<body>` and parks it off-screen with `!important`,
-   rather than hiding it. Webflow guards forms with Cloudflare Turnstile, and
-   Turnstile will not run inside a `display:none` subtree — a hidden form never
-   gets a token, so Webflow answers **422** to every attempt no matter how long
-   `whenSpamTokenReady()` waits. This is what broke v1.5.2. Don't go back to
-   `display:none`, and don't call `turnstile.execute()` to hurry it along —
-   executing it renders the challenge, which is exactly what must stay unseen.
+   rather than hiding it. Turnstile will not run inside a `display:none`
+   subtree. Don't go back to `display:none`, and don't call
+   `turnstile.execute()` to hurry it along — executing it renders the
+   challenge, which is exactly what must stay unseen.
+
+   **Submit first; don't wait for a spam-check token.** Measured on the live
+   site with the browser: Webflow does not render Turnstile on page load at
+   all — there is no widget and no token 90 seconds in. It renders the
+   challenge *in response to a submit*. So a pre-submit wait can only run out
+   the clock on a token nothing has asked for yet. `attempt()` fires straight
+   away; `whenSpamTokenReady()` is only used **after** a 422, to wait for the
+   token that the rejected attempt provoked. Reversing this is what made
+   v1.5.x take 8s per attempt and still fail. `MAX_ATTEMPTS` is 3.
+
+   **Measure waits with the clock, not by counting ticks.** Every timeout uses
+   `since(t0)` against `Date.now()`. A background tab clamps `setInterval` to
+   ~1/second, so the old `waited += 150` turned an 8s wait into nearly a
+   minute for anyone who switched tabs mid-form. `SUBMIT_DEADLINE` (45s) is a
+   backstop so the button can never spin forever if an attempt neither answers
+   nor times out.
 
 2. **Webhook** (`CONFIG.webhookUrl`). POSTs the JSON payload.
 3. **Preview mode** (neither set). Shows the payload on screen instead of

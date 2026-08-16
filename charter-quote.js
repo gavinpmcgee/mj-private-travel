@@ -974,17 +974,38 @@
     return function () { if (!spent) { spent = true; restore(); } };
   }
 
-  /* Webflow guards forms with Cloudflare Turnstile. It solves an invisible
-     challenge in the background and drops a token into a hidden input; submit
-     before that lands and Webflow answers 422 — which is why a submission
-     could fail on the first try and succeed on a slower second one. Nothing
-     here forces or fakes the check. It waits for the token the page was
-     already going to produce, then submits.
+  /* Webflow guards forms with Cloudflare Turnstile, and answers 422 when the
+     submission carries no token.
 
-     The token normally lands seconds after page load, long before anyone has
-     filled in four steps — so this wait should never be reached. When it is,
-     the check is being prevented from running rather than being slow. */
+     Waiting for a token *before* submitting looks like the fix and is not:
+     measured on the live site, Webflow doesn't render Turnstile on page load
+     at all. There is no widget and no token 90 seconds in — it renders the
+     challenge in response to a submit. So a pre-submit wait can only ever run
+     out the clock on a token that nothing has asked for yet, which is exactly
+     what made a failed submission take twice as long as it needed to.
+
+     The order that works is the other way round: submit, let that provoke
+     Webflow into running its check, and if the answer is 422, wait for the
+     token that now exists and submit again. */
   var SPAM_TOKEN_WAIT = 8000;
+
+  /* Three tries: the first provokes the spam check, the second carries its
+     token, and the third covers a token that arrived a moment too late. */
+  var MAX_ATTEMPTS = 3;
+
+  /* How long one attempt may sit with no answer at all. */
+  var ATTEMPT_TIMEOUT = 12000;
+
+  /* And a ceiling on the whole thing, so the button can never sit on
+     "Sending your request…" forever if an attempt neither answers nor times
+     out — which is precisely how it got stuck once already. */
+  var SUBMIT_DEADLINE = 45000;
+
+  /* Every wait here is measured against the clock rather than by counting
+     ticks. A background tab clamps setInterval to roughly once a second, so
+     `waited += 150` turned an 8-second wait into nearly a minute for anyone
+     who switched tabs mid-form — and the 12-second give-up with it. */
+  function since(t0) { return Date.now() - t0; }
 
   function spamToken() {
     var el = document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i], input[name*="captcha" i]');
@@ -1002,26 +1023,23 @@
       document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i]'));
   }
 
-  /* Don't call turnstile.execute() to hurry this along. Cloudflare's widget
-     is meant to be visible, and executing it renders the challenge — which
-     on a bridged form means Webflow's hidden plumbing appears on the page.
-     If the token isn't ready in time, the answer is to turn Webflow's spam
-     protection off, not to poke at it from here. */
+  /* Only ever called after a 422 — never before the first attempt. Don't call
+     turnstile.execute() to hurry it along either: Cloudflare's widget is meant
+     to be visible, and executing it renders the challenge, which on a bridged
+     form means Webflow's plumbing appears on the page. */
   function whenSpamTokenReady(cb) {
     if (!spamCheckPresent() || spamToken()) { cb(); return; }
-    var waited = 0;
+    var t0 = Date.now();
     var tick = setInterval(function () {
-      waited += 150;
       if (spamToken()) { clearInterval(tick); cb(); return; }
-      if (waited >= SPAM_TOKEN_WAIT) {
+      if (since(t0) >= SPAM_TOKEN_WAIT) {
         clearInterval(tick);
         if (window.console && console.warn) {
-          console.warn("[charter-quote] The page's spam check produced no token after " +
-            (SPAM_TOKEN_WAIT / 1000) + "s, so Webflow will most likely answer 422. " +
-            "The check needs the Webflow form to be rendered — it can't run in a " +
-            "display:none block. If the form is hidden by anything other than this " +
-            "widget, unhide it, or turn spam protection off for this form in " +
-            "Webflow's site settings.");
+          console.warn("[charter-quote] The page's spam check still produced no token " +
+            (SPAM_TOKEN_WAIT / 1000) + "s after Webflow rejected the submission. " +
+            "Either the check isn't running for this form, or the rejection wasn't " +
+            "about spam at all — check the site's form submission limit in Webflow's " +
+            "site settings, and try turning spam protection off for this form.");
         }
         cb();
       }
@@ -1144,8 +1162,22 @@
     }
 
     var attempts = 0;
+    var startedAt = Date.now();
+    var abandoned = false;
+
+    /* The last line of defence. Whatever else goes wrong, the customer gets
+       an answer rather than a button that spins until they give up. */
+    var deadline = setTimeout(function () {
+      abandoned = true;
+      if (window.console && console.warn) {
+        console.warn("[charter-quote] Gave up after " + (SUBMIT_DEADLINE / 1000) +
+          "s across " + attempts + " attempt(s) — no attempt ever settled.");
+      }
+      onFail("That took too long to send. Please try again, or call us and we'll take the details over the phone.");
+    }, SUBMIT_DEADLINE);
 
     function attempt() {
+      if (abandoned) return;
       attempts++;
 
       /* Re-read each time: a rejected attempt leaves Webflow's error message
@@ -1155,25 +1187,31 @@
       var settled = false, poll = null, stopWatching = null, sawRequest = false;
 
       function settle(ok, message, detail) {
-        if (settled) return;
+        if (settled || abandoned) return;
         settled = true;
         if (poll) clearInterval(poll);
         if (stopWatching) stopWatching();
-        if (ok) { finish(payload, false); return; }
+        if (ok) { clearTimeout(deadline); finish(payload, false); return; }
 
-        /* 422 is Webflow's answer when the spam check had no token yet. One
-           retry, once a token exists, is all it has ever needed. */
-        if (detail && detail.indexOf("HTTP 422") !== -1 && attempts < 2) {
+        /* 422 is Webflow's answer when the submission carried no spam-check
+           token. The first attempt is what makes Webflow render the challenge
+           in the first place, so the token generally exists by now — wait for
+           it and go again. */
+        if (detail && detail.indexOf("HTTP 422") !== -1 && attempts < MAX_ATTEMPTS) {
           if (window.console && console.warn) {
             console.warn("[charter-quote] " + detail + (spamToken()
-              ? " — trying once more."
-              : " — and the spam check still has no token. Waiting for one, then trying once more."));
+              ? " — a spam-check token is now available, trying again."
+              : " — waiting for the spam check that this attempt should have started, then trying again."));
           }
           whenSpamTokenReady(attempt);
           return;
         }
 
-        if (detail && window.console && console.warn) console.warn("[charter-quote] " + detail);
+        clearTimeout(deadline);
+        if (detail && window.console && console.warn) {
+          console.warn("[charter-quote] " + detail + " (attempt " + attempts + " of " +
+            MAX_ATTEMPTS + ", " + Math.round(since(startedAt) / 1000) + "s in)");
+        }
         onFail(CONFIG.debug && detail ? detail : message);
       }
 
@@ -1194,9 +1232,8 @@
 
       /* Fallback for the case where Webflow stops using XHR. The request, when
          we can see it, always wins — these divs only decide if none appeared. */
-      var waited = 0;
+      var t0 = Date.now();
       poll = setInterval(function () {
-        waited += 200;
         if (sawRequest) return;
         if (!doneWas && wfShown(done)) { settle(true); return; }
         if (!failWas && wfShown(fail)) {
@@ -1204,14 +1241,17 @@
             "Webflow showed its error message, but no form request was seen leaving the page.");
           return;
         }
-        if (waited >= 12000) {
+        if (since(t0) >= ATTEMPT_TIMEOUT) {
           settle(false, "That took too long to send. Please try again, or call us and we'll take the details over the phone.",
-            "No response after 12s. No form request was seen leaving the page — the browser most likely refused to send it.");
+            "No response after " + (ATTEMPT_TIMEOUT / 1000) + "s. No form request was seen leaving the page — " +
+            "the browser most likely refused to send it.");
         }
       }, 200);
     }
 
-    whenSpamTokenReady(attempt);
+    /* Straight in. Webflow renders its spam check in response to a submit, so
+       there is nothing to wait for until the first attempt has been made. */
+    attempt();
   }
 
   formEl.addEventListener("submit", function (e) {

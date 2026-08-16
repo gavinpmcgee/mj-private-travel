@@ -359,34 +359,36 @@ function bootWidget(bodyHtml) {
   check("still parked once, in the same place",
     dmHide.window.document.querySelectorAll(".w-form").length, 1);
 
-  /* Webflow's Turnstile check drops a token in asynchronously. Submitting
-     before it lands is answered with 422, so the widget must wait. */
-  console.log("\nWebflow bridge — waits for the spam-check token");
+  /* Measured on the live site: Webflow doesn't render Turnstile until a
+     submit provokes it, so there is no token to wait for beforehand and
+     waiting only burns the clock. Submit first, then react to the answer. */
+  console.log("\nWebflow bridge — submits without waiting for a token");
   const dmTok = bootWidget(mockWebflowForm(WF_FIELDS) +
     '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  let token = "";
-  dmTok.window.turnstile = { getResponse: () => token };
+  dmTok.window.turnstile = { getResponse: () => "" };   // present, never a token
   const fireTok = withMockWebflowXhr(dmTok, [200], "ok");
   dmTok.window.document.querySelector('form[data-name="Charter Quote"]')
     .addEventListener("submit", (e) => { e.preventDefault(); fireTok(); });
   driveToSubmit(dmTok.window, dmTok.window.document);
-  await sleep(400);
-  check("holds off while the token is missing", fireTok.sent.count, 0);
-  check("no success reported while waiting",
-    dmTok.window.document.getElementById("cqDone").classList.contains("is-open"), false);
-  token = "0.abc-turnstile-token";
-  await sleep(500);
-  check("submits once the token lands", fireTok.sent.count, 1);
-  check("succeeds after waiting",
+  await sleep(300);
+  check("submitted straight away despite no token", fireTok.sent.count, 1);
+  check("succeeded on the first attempt",
     dmTok.window.document.getElementById("cqDone").classList.contains("is-open"), true);
 
-  /* A 422 that slips through anyway must be retried once, not surfaced. */
-  console.log("\nWebflow bridge — retries once on 422");
+  /* The first attempt is what makes Webflow run its check. A 422 is answered
+     by waiting for the token that attempt produced, then going again. */
+  console.log("\nWebflow bridge — retries on 422 once a token exists");
   const dm422 = bootWidget(mockWebflowForm(WF_FIELDS) +
     '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
+  let token = "";
+  dm422.window.turnstile = { getResponse: () => token };
   const fire422 = withMockWebflowXhr(dm422, [422, 200], '{"msg":"Could not process the form submission","code":422}');
   dm422.window.document.querySelector('form[data-name="Charter Quote"]')
-    .addEventListener("submit", (e) => { e.preventDefault(); fire422(); });
+    .addEventListener("submit", (e) => {
+      e.preventDefault();
+      fire422();
+      token = "0.abc-turnstile-token";   // as Webflow's own render would
+    });
   driveToSubmit(dm422.window, dm422.window.document);
   await sleep(500);
   check("retried after the 422", fire422.sent.count, 2);
@@ -395,7 +397,7 @@ function bootWidget(bodyHtml) {
     dm422.window.document.getElementById("cqFormErr").classList.contains("is-open"), false);
 
   /* But it must give up rather than hammer Webflow forever. */
-  console.log("\nWebflow bridge — gives up after one retry");
+  console.log("\nWebflow bridge — gives up after three attempts");
   const dmDead = bootWidget(mockWebflowForm(WF_FIELDS) +
     '<div id="charter-quote" data-webflow-form="Charter Quote" data-debug="true"></div>');
   const fireDead = withMockWebflowXhr(dmDead, [422], '{"code":422}');
@@ -403,7 +405,7 @@ function bootWidget(bodyHtml) {
     .addEventListener("submit", (e) => { e.preventDefault(); fireDead(); });
   driveToSubmit(dmDead.window, dmDead.window.document);
   await sleep(600);
-  check("stops at two attempts", fireDead.sent.count, 2);
+  check("stops at three attempts", fireDead.sent.count, 3);
   check("reports the failure", dmDead.window.document.getElementById("cqFormErr").classList.contains("is-open"), true);
   check("debug shows the 422", /HTTP 422/.test(dmDead.window.document.getElementById("cqFormErr").textContent), true);
 

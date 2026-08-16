@@ -78,7 +78,7 @@ it:
 
 ```html
 <div id="charter-quote" data-webflow-form="Charter Quote"></div>
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.6.1/charter-quote.js" defer></script>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.6.2/charter-quote.js" defer></script>
 ```
 
 The widget takes the form off the page for you: on load it moves the whole Form

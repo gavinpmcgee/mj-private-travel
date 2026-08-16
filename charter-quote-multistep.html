@@ -1487,7 +1487,7 @@
   /* Webflow's success and error divs are a guess at what happened. The
      request itself knows. This observes Webflow's own XHR — it never alters
      it — and puts the originals back the moment the submission resolves. */
-  function watchWebflowRequest(onResult) {
+  function watchWebflowRequest(onResult, onStart) {
     var XHR = window.XMLHttpRequest;
     if (!XHR || !XHR.prototype || !XHR.prototype.send) return function () {};
 
@@ -1508,6 +1508,7 @@
     XHR.prototype.send = function () {
       var xhr = this;
       if (/\/api\/v\d+\/form/i.test(xhr.__cqUrl || "")) {
+        if (onStart) onStart();
         xhr.addEventListener("loadend", function () {
           if (spent) return;
           spent = true;
@@ -1545,8 +1546,16 @@
 
   /* And a ceiling on the whole thing, so the button can never sit on
      "Sending your request…" forever if an attempt neither answers nor times
-     out — which is precisely how it got stuck once already. */
+     out — which is precisely how it got stuck once already.
+
+     Neither deadline runs while a request is genuinely in flight. Webflow's
+     form endpoint was measured taking 63 seconds to answer a single
+     submission; giving up at 45s meant telling the customer it "took too
+     long" and then throwing away the real answer when it arrived. Waiting is
+     right as long as something is actually outstanding — SUBMIT_CEILING is
+     there for when it never lands at all. */
   var SUBMIT_DEADLINE = 45000;
+  var SUBMIT_CEILING  = 120000;
 
   /* Every wait here is measured against the clock rather than by counting
      ticks. A background tab clamps setInterval to roughly once a second, so
@@ -1711,17 +1720,24 @@
     var attempts = 0;
     var startedAt = Date.now();
     var abandoned = false;
+    var pending = 0;          /* form requests currently outstanding */
 
     /* The last line of defence. Whatever else goes wrong, the customer gets
-       an answer rather than a button that spins until they give up. */
-    var deadline = setTimeout(function () {
+       an answer rather than a button that spins until they give up — but it
+       holds off while Webflow still owes us a response. */
+    var deadline = setInterval(function () {
+      var waited = since(startedAt);
+      if (waited < SUBMIT_DEADLINE) return;
+      if (pending > 0 && waited < SUBMIT_CEILING) return;
+      clearInterval(deadline);
       abandoned = true;
       if (window.console && console.warn) {
-        console.warn("[charter-quote] Gave up after " + (SUBMIT_DEADLINE / 1000) +
-          "s across " + attempts + " attempt(s) — no attempt ever settled.");
+        console.warn("[charter-quote] Gave up after " + Math.round(waited / 1000) +
+          "s across " + attempts + " attempt(s)" +
+          (pending > 0 ? " — a request to Webflow never came back." : " — no attempt ever settled."));
       }
       onFail("That took too long to send. Please try again, or call us and we'll take the details over the phone.");
-    }, SUBMIT_DEADLINE);
+    }, 500);
 
     function attempt() {
       if (abandoned) return;
@@ -1731,14 +1747,14 @@
          showing, and on a retry that's old news rather than a fresh verdict. */
       var doneWas = wfShown(done);
       var failWas = wfShown(fail);
-      var settled = false, poll = null, stopWatching = null, sawRequest = false;
+      var settled = false, poll = null, stopWatching = null, sawRequest = false, inFlight = false;
 
       function settle(ok, message, detail) {
         if (settled || abandoned) return;
         settled = true;
         if (poll) clearInterval(poll);
         if (stopWatching) stopWatching();
-        if (ok) { clearTimeout(deadline); finish(payload, false); return; }
+        if (ok) { clearInterval(deadline); finish(payload, false); return; }
 
         /* 422 is Webflow's answer when the submission carried no spam-check
            token. The first attempt is what makes Webflow render the challenge
@@ -1754,7 +1770,7 @@
           return;
         }
 
-        clearTimeout(deadline);
+        clearInterval(deadline);
         if (detail && window.console && console.warn) {
           console.warn("[charter-quote] " + detail + " (attempt " + attempts + " of " +
             MAX_ATTEMPTS + ", " + Math.round(since(startedAt) / 1000) + "s in)");
@@ -1764,13 +1780,14 @@
 
       stopWatching = watchWebflowRequest(function (status, body) {
         sawRequest = true;
+        if (pending > 0) pending--;
         if (status >= 200 && status < 300) { settle(true); return; }
         settle(false,
           status === 429
             ? "We're getting a lot of requests right now. Please try again in a moment, or call us and we'll take the details over the phone."
             : "That didn't send. Please try again, or call us and we'll take the details over the phone.",
           "Webflow answered HTTP " + status + (body ? " — " + body : " with an empty body"));
-      });
+      }, function () { pending++; inFlight = true; });
 
       var btn = form.querySelector('input[type="submit"], button[type="submit"]');
       if (btn) btn.click();
@@ -1781,7 +1798,8 @@
          we can see it, always wins — these divs only decide if none appeared. */
       var t0 = Date.now();
       poll = setInterval(function () {
-        if (sawRequest) return;
+        /* A request that's still running isn't a request that failed. */
+        if (sawRequest || inFlight) return;
         if (!doneWas && wfShown(done)) { settle(true); return; }
         if (!failWas && wfShown(fail)) {
           settle(false, "That didn't send. Please try again, or call us and we'll take the details over the phone.",

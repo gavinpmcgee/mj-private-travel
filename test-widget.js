@@ -68,20 +68,6 @@ check("no html/body rule", !/(^|\n)\s*html, body/.test(css));
 check("no bare :focus-visible", !/(^|\n)\s*:focus-visible \{/.test(css));
 check("font inherits from page", /--font-sans:\s*inherit/.test(css));
 
-console.log("\nPanel treatment (full width, frosted, rounded)");
-const panelRule = css.slice(css.indexOf(".cq {\n    max-width"), css.indexOf("@supports not"));
-check("full width", /--max:\s*100%/.test(css));
-check("frosted background", /background:\s*var\(--panel\)/.test(panelRule));
-check("backdrop blur applied", /\n\s*backdrop-filter:\s*blur/.test(panelRule));
-check("webkit prefix present for Safari", /-webkit-backdrop-filter:\s*blur/.test(panelRule));
-check("corners rounded", /border-radius:\s*var\(--panel-radius\)/.test(panelRule));
-check("fallback when backdrop-filter is unsupported", css.includes("@supports not"));
-// the build injects its own `.cq { background: var(--bg) }` — the frosted rule must come after it
-check("frosted background beats the build's solid one",
-  css.indexOf("background: var(--panel)") > css.indexOf("background: var(--bg);"));
-// height must stay content-driven: the panel grows with legs and shrinks on success
-check("no fixed height on the panel", !/(^|\n)\s*(min-|max-)?height:/.test(panelRule));
-
 console.log("\nAirport autocomplete");
 const from = d.querySelector('[data-airport="from"]');
 from.value = "KTEB"; fire(from, "input");
@@ -167,17 +153,14 @@ check("contact email", p.contact.email, "test@example.com");
 const BUNDLE = fs.readFileSync("charter-quote.js", "utf8");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/* Webflow rejects long field values, so the widget caps everything it writes */
-const WF_FIELD_MAX = 500;
-
 const WF_FIELDS = ["Reference", "Trip-Type", "Itinerary", "Dates-Flexible", "Passengers",
   "Aircraft", "Baggage", "Pets", "Catering", "Ground-Transport", "Name", "Email",
-  "Phone", "Booking-For", "SMS-Consent", "Notes", "Page-URL"];
+  "Phone", "Booking-For", "SMS-Consent", "Notes", "Page-URL", "Payload"];
 
-function mockWebflowForm(fields) {
+function mockWebflowForm() {
   return '<div class="w-form">' +
     '<form id="wf-form-Charter" name="wf-form-Charter" data-name="Charter Quote">' +
-    fields.map((n) => `<input name="${n}">`).join("") +
+    WF_FIELDS.map((n) => `<input name="${n}">`).join("") +
     '<input type="submit" value="Submit">' +
     '</form>' +
     '<div class="w-form-done">Thank you</div>' +
@@ -186,7 +169,7 @@ function mockWebflowForm(fields) {
 }
 
 /* walks the four steps and submits — mirrors the manual flow above */
-function driveToSubmit(win, doc, notes) {
+function driveToSubmit(win, doc) {
   const f = (el, t) => el.dispatchEvent(new win.Event(t, { bubbles: true }));
   const c = (el) => el.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
   const id = (x) => doc.getElementById(x);
@@ -209,7 +192,7 @@ function driveToSubmit(win, doc, notes) {
   id("cqName").value = "Test User";        f(id("cqName"), "input");
   id("cqEmail").value = "test@example.com"; f(id("cqEmail"), "input");
   id("cqPhone").value = "2035551234";      f(id("cqPhone"), "input");
-  id("cqNotes").value = notes || "Wheels up early"; f(id("cqNotes"), "input");
+  id("cqNotes").value = "Wheels up early"; f(id("cqNotes"), "input");
   go();                                    // -> review
   go();                                    // final submit
 }
@@ -224,20 +207,9 @@ function bootWidget(bodyHtml) {
 }
 
 (async function () {
-  console.log("\nPanel config via data attributes");
-  const dmCfg = bootWidget('<div id="charter-quote" data-max-width="880px" data-radius="24px" data-blur="30px"></div>');
-  const panel = dmCfg.window.document.querySelector("#charter-quote .cq");
-  check("data-max-width caps the panel", panel.style.getPropertyValue("--max"), "880px");
-  check("data-radius overrides corners", panel.style.getPropertyValue("--panel-radius"), "24px");
-  check("data-blur overrides frost", panel.style.getPropertyValue("--blur"), "30px");
-
-  const dmDefault = bootWidget('<div id="charter-quote"></div>');
-  check("no override leaves the panel full width",
-    dmDefault.window.document.querySelector("#charter-quote .cq").style.getPropertyValue("--max"), "");
-
   console.log("\nWebflow form bridge");
 
-  const dm = bootWidget(mockWebflowForm(WF_FIELDS.concat(["Payload"])) +
+  const dm = bootWidget(mockWebflowForm() +
     '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
   const w2 = dm.window, d2 = w2.document;
 
@@ -256,13 +228,8 @@ function bootWidget(bodyHtml) {
   check("passengers written", val("Passengers"), "4");
   check("notes written", val("Notes"), "Wheels up early");
   check("itinerary flattened", /1\. KTEB -> KPBI\s+2026-09-14/.test(val("Itinerary")), true);
+  check("full payload attached", JSON.parse(val("Payload")).trip.legs[0].toIcao, "KPBI");
   check("no field left unmapped", WF_FIELDS.every((n) => val(n) !== ""), true);
-
-  // the JSON backstop must stay under Webflow's field limit, or it's dropped
-  check("payload backstop attached", JSON.parse(val("Payload")).legs[0].to, "KPBI");
-  check("payload within Webflow's limit", val("Payload").length <= WF_FIELD_MAX, true);
-  check("every field within Webflow's limit",
-    WF_FIELDS.concat(["Payload"]).every((n) => val(n).length <= WF_FIELD_MAX), true);
 
   // widget must wait for Webflow's confirmation, not assume success
   check("waits for Webflow to confirm", d2.getElementById("cqDone").classList.contains("is-open"), false);
@@ -272,224 +239,6 @@ function bootWidget(bodyHtml) {
   check("success panel after Webflow confirms",
     d2.getElementById("cqDone").classList.contains("is-open"), true);
   check("no preview payload dumped", d2.getElementById("cqDebug").hidden, true);
-
-  /* Payload is optional — a Designer form without it must still go through.
-     This is the shape that broke in production: the field was removed to get
-     under Webflow's length limit. */
-  console.log("\nWebflow bridge — form without the optional Payload field");
-  const dmNoP = bootWidget(mockWebflowForm(WF_FIELDS) +
-    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  const fNoP = dmNoP.window.document.querySelector('form[data-name="Charter Quote"]');
-  let submittedNoP = 0;
-  fNoP.addEventListener("submit", (e) => { e.preventDefault(); submittedNoP++; });
-  driveToSubmit(dmNoP.window, dmNoP.window.document);
-  await sleep(300);
-  check("submits without a Payload field", submittedNoP, 1);
-  check("named fields still populated", fNoP.querySelector('[name="Email"]').value, "test@example.com");
-  dmNoP.window.document.querySelector(".w-form-done").style.display = "block";
-  await sleep(400);
-  check("succeeds without a Payload field",
-    dmNoP.window.document.getElementById("cqDone").classList.contains("is-open"), true);
-
-  /* An over-long note must be trimmed, not passed through to be rejected */
-  console.log("\nWebflow bridge — over-long note");
-  const dmLong = bootWidget(mockWebflowForm(WF_FIELDS) +
-    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  const fLong = dmLong.window.document.querySelector('form[data-name="Charter Quote"]');
-  fLong.addEventListener("submit", (e) => e.preventDefault());
-  driveToSubmit(dmLong.window, dmLong.window.document, "N".repeat(3000));
-  await sleep(300);
-  const noteVal = fLong.querySelector('[name="Notes"]').value;
-  check("long note truncated", noteVal.length, WF_FIELD_MAX);
-  check("truncation is visible", /\[…\]$/.test(noteVal), true);
-
-  /* The HTTP response is the authority, not Webflow's success/error divs.
-     A mock XHR stands in for Webflow's own request. */
-  function withMockWebflowXhr(dm, statuses, body) {
-    const queue = [].concat(statuses);
-    const win = dm.window;
-    const sent = { count: 0 };
-    const Fake = function () { this.status = 0; this.__l = []; };
-    Fake.prototype.open = function (m, u) { this.__url = u; };
-    Fake.prototype.addEventListener = function (t, fn) { if (t === "loadend") this.__l.push(fn); };
-    Fake.prototype.send = function () {
-      const self = this;
-      const status = queue.length > 1 ? queue.shift() : queue[0];
-      sent.count++;
-      setTimeout(function () {
-        self.status = status;
-        self.responseText = body;
-        self.__l.forEach(function (fn) { fn(); });
-      }, 20);
-    };
-    win.XMLHttpRequest = Fake;
-    // stands in for Webflow's own handler firing the request on submit
-    return Object.assign(function fire() {
-      const x = new win.XMLHttpRequest();
-      x.open("POST", "https://webflow.com/api/v1/form/abc123");
-      x.send();
-    }, { sent });
-  }
-
-  /* The customer must never see the plumbing, and we must never make
-     Cloudflare render its challenge by executing it ourselves. It has to stay
-     rendered all the same — Turnstile won't run inside display:none, and a
-     form with no token is answered 422 however long we wait for one. */
-  console.log("\nWebflow bridge — parks its plumbing off-screen, still rendered");
-  const dmHide = bootWidget('<section style="display:none">' +
-    mockWebflowForm(WF_FIELDS) + '</section>' +
-    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  let executed = 0;
-  dmHide.window.turnstile = { getResponse: () => "", execute: () => { executed++; } };
-  await sleep(700);
-  const parked = dmHide.window.document.querySelector(".w-form");
-  check("the block is not display:none", parked.style.display, "block");
-  check("the block is parked off-screen", parked.style.left, "-99999px");
-  check("...with !important, so Designer styles can't win",
-    parked.style.getPropertyPriority("display"), "important");
-  check("moved out of the hidden container it was published in",
-    parked.parentNode, dmHide.window.document.body);
-  check("its fields are out of the tab order",
-    parked.querySelector('input[name="Reference"]').getAttribute("tabindex"), "-1");
-  check("never executes the challenge itself", executed, 0);
-
-  /* Parking is idempotent — submitting must not relocate it a second time. */
-  driveToSubmit(dmHide.window, dmHide.window.document);
-  await sleep(300);
-  check("still parked once, in the same place",
-    dmHide.window.document.querySelectorAll(".w-form").length, 1);
-
-  /* Measured on the live site: Webflow doesn't render Turnstile until a
-     submit provokes it, so there is no token to wait for beforehand and
-     waiting only burns the clock. Submit first, then react to the answer. */
-  console.log("\nWebflow bridge — submits without waiting for a token");
-  const dmTok = bootWidget(mockWebflowForm(WF_FIELDS) +
-    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  dmTok.window.turnstile = { getResponse: () => "" };   // present, never a token
-  const fireTok = withMockWebflowXhr(dmTok, [200], "ok");
-  dmTok.window.document.querySelector('form[data-name="Charter Quote"]')
-    .addEventListener("submit", (e) => { e.preventDefault(); fireTok(); });
-  driveToSubmit(dmTok.window, dmTok.window.document);
-  await sleep(300);
-  check("submitted straight away despite no token", fireTok.sent.count, 1);
-  check("succeeded on the first attempt",
-    dmTok.window.document.getElementById("cqDone").classList.contains("is-open"), true);
-
-  /* The first attempt is what makes Webflow run its check. A 422 is answered
-     by waiting for the token that attempt produced, then going again. */
-  console.log("\nWebflow bridge — retries on 422 once a token exists");
-  const dm422 = bootWidget(mockWebflowForm(WF_FIELDS) +
-    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  let token = "";
-  dm422.window.turnstile = { getResponse: () => token };
-  const fire422 = withMockWebflowXhr(dm422, [422, 200], '{"msg":"Could not process the form submission","code":422}');
-  dm422.window.document.querySelector('form[data-name="Charter Quote"]')
-    .addEventListener("submit", (e) => {
-      e.preventDefault();
-      fire422();
-      token = "0.abc-turnstile-token";   // as Webflow's own render would
-    });
-  driveToSubmit(dm422.window, dm422.window.document);
-  await sleep(500);
-  check("retried after the 422", fire422.sent.count, 2);
-  check("retry succeeds", dm422.window.document.getElementById("cqDone").classList.contains("is-open"), true);
-  check("customer never saw the 422",
-    dm422.window.document.getElementById("cqFormErr").classList.contains("is-open"), false);
-
-  /* But it must give up rather than hammer Webflow forever. */
-  console.log("\nWebflow bridge — gives up after three attempts");
-  const dmDead = bootWidget(mockWebflowForm(WF_FIELDS) +
-    '<div id="charter-quote" data-webflow-form="Charter Quote" data-debug="true"></div>');
-  const fireDead = withMockWebflowXhr(dmDead, [422], '{"code":422}');
-  dmDead.window.document.querySelector('form[data-name="Charter Quote"]')
-    .addEventListener("submit", (e) => { e.preventDefault(); fireDead(); });
-  driveToSubmit(dmDead.window, dmDead.window.document);
-  await sleep(600);
-  check("stops at three attempts", fireDead.sent.count, 3);
-  check("reports the failure", dmDead.window.document.getElementById("cqFormErr").classList.contains("is-open"), true);
-  check("debug shows the 422", /HTTP 422/.test(dmDead.window.document.getElementById("cqFormErr").textContent), true);
-
-  console.log("\nWebflow bridge — the HTTP response decides the outcome");
-  const dmOk = bootWidget(mockWebflowForm(WF_FIELDS) +
-    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  const fireOk = withMockWebflowXhr(dmOk, [200], "ok");
-  dmOk.window.document.querySelector('form[data-name="Charter Quote"]')
-    .addEventListener("submit", (e) => { e.preventDefault(); fireOk(); });
-  driveToSubmit(dmOk.window, dmOk.window.document);
-  await sleep(300);
-  check("HTTP 200 succeeds without any Webflow div appearing",
-    dmOk.window.document.getElementById("cqDone").classList.contains("is-open"), true);
-
-  const dmErr = bootWidget(mockWebflowForm(WF_FIELDS) +
-    '<div id="charter-quote" data-webflow-form="Charter Quote" data-debug="true"></div>');
-  const fireErr = withMockWebflowXhr(dmErr, [429], "rate limited");
-  dmErr.window.document.querySelector('form[data-name="Charter Quote"]')
-    .addEventListener("submit", (e) => { e.preventDefault(); fireErr(); });
-  driveToSubmit(dmErr.window, dmErr.window.document);
-  await sleep(300);
-  const errBox = dmErr.window.document.getElementById("cqFormErr");
-  check("a rejection is reported as failure", errBox.classList.contains("is-open"), true);
-  check("data-debug puts the status on screen", /HTTP 429/.test(errBox.textContent), true);
-  check("data-debug includes the response body", /rate limited/.test(errBox.textContent), true);
-  check("no false success on rejection",
-    dmErr.window.document.getElementById("cqDone").classList.contains("is-open"), false);
-
-  // XHR must be handed back untouched, or the rest of the page breaks
-  check("XMLHttpRequest restored after the request settles",
-    typeof dmErr.window.XMLHttpRequest === "function", true);
-
-  /* Designer forms aren't always plain text inputs, and required flags on a
-     hidden form fail invisibly. Neither may block a submission. */
-  console.log("\nWebflow bridge — required flags, selects and checkboxes");
-  const awkward = '<div class="w-form">' +
-    '<form data-name="Charter Quote">' +
-    '<input name="Reference" required><input name="Trip-Type" required>' +
-    '<textarea name="Itinerary" required></textarea>' +
-    '<input name="Passengers" required><input name="Name" required>' +
-    '<input name="Email" type="email" required><input name="Phone">' +
-    '<select name="Aircraft" required><option value=""></option></select>' +
-    '<select name="Ground-Transport" required><option value="Yes"></option><option value="No"></option></select>' +
-    '<input name="Pets" type="checkbox"><input name="Catering" type="checkbox">' +
-    '<input name="Baggage" required><input name="Dates-Flexible">' +
-    '<input name="Booking-For"><input name="SMS-Consent">' +
-    '<input name="Notes"><input name="Page-URL">' +
-    '<input type="submit"></form>' +
-    '<div class="w-form-done"></div><div class="w-form-fail"></div></div>';
-  const dmAwk = bootWidget(awkward + '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  const dAwk = dmAwk.window.document;
-  const fAwk = dAwk.querySelector('form[data-name="Charter Quote"]');
-  let awkSubmits = 0;
-  fAwk.addEventListener("submit", (e) => { e.preventDefault(); awkSubmits++; });
-  driveToSubmit(dmAwk.window, dAwk);
-  await sleep(300);
-  check("required flags stripped", fAwk.querySelectorAll("[required]").length, 0);
-  check("form validates after filling", fAwk.checkValidity(), true);
-  check("select without a matching option still takes the value",
-    fAwk.querySelector('[name="Aircraft"]').value, "No preference");
-  check("select with matching options is unharmed",
-    fAwk.querySelector('[name="Ground-Transport"]').value, "No");
-  check("no duplicate option injected",
-    fAwk.querySelector('[name="Ground-Transport"]').options.length, 2);
-  check("checkbox set from Yes/No", fAwk.querySelector('[name="Pets"]').checked, false);
-  check("submit reached the form", awkSubmits, 1);
-
-  /* The Designer publishes whichever form state was left showing. An error
-     div already visible at load must not be read as a failed submission. */
-  console.log("\nWebflow bridge — error state left visible in the Designer");
-  const dmStuck = bootWidget(mockWebflowForm(WF_FIELDS) +
-    '<div id="charter-quote" data-webflow-form="Charter Quote"></div>');
-  const dStuck = dmStuck.window.document;
-  dStuck.querySelector(".w-form-fail").style.display = "block";   // as Webflow would publish it
-  dStuck.querySelector('form[data-name="Charter Quote"]')
-    .addEventListener("submit", (e) => e.preventDefault());
-  driveToSubmit(dmStuck.window, dStuck);
-  await sleep(600);
-  check("pre-existing error div is not read as failure",
-    dStuck.getElementById("cqFormErr").classList.contains("is-open"), false);
-  dStuck.querySelector(".w-form-done").style.display = "block";
-  await sleep(400);
-  check("success still detected underneath it",
-    dStuck.getElementById("cqDone").classList.contains("is-open"), true);
 
   // a missing form must surface an error, never a false success
   console.log("\nWebflow bridge — form missing from page");

@@ -103,7 +103,6 @@ j = rep(j, SUBMIT_OLD, SUBMIT_NEW, "js submit notify");
 j = rep(j, /var CONFIG = \{/, "var D = el.dataset || {};\n  var CONFIG = {", "js CONFIG dataset");
 j = rep(j, /webhookUrl: "",/,  'webhookUrl: D.webhook || "",',      "js cfg webhook");
 j = rep(j, /webflowForm: "",/, 'webflowForm: D.webflowForm || "",', "js cfg webflowForm");
-j = rep(j, /debug: false,/,    "debug: !!D.debug,",                 "js cfg debug");
 j = rep(j, /fontUrl: "",/,     'fontUrl: D.fontUrl || "",',         "js cfg fontUrl");
 j = rep(j, /refPrefix: "CQ"/,  'refPrefix: D.refPrefix || "CQ"',    "js cfg refPrefix");
 j = rep(j, /maxLegs: 6,/,      "maxLegs: +(D.maxLegs || 6),",       "js cfg maxLegs");
@@ -139,13 +138,10 @@ const out = `/*!
     var root = el.querySelector(".cq");
 
     var D = el.dataset || {};
-    if (D.bg)       root.style.setProperty("--bg", D.bg);
-    if (D.bgDeep)   root.style.setProperty("--bg-deep", D.bgDeep);
-    if (D.accent)   root.style.setProperty("--signal", D.accent);
-    if (D.font)     root.style.setProperty("--font-sans", D.font);
-    if (D.maxWidth) root.style.setProperty("--max", D.maxWidth);
-    if (D.radius)   root.style.setProperty("--panel-radius", D.radius);
-    if (D.blur)     root.style.setProperty("--blur", D.blur);
+    if (D.bg)     root.style.setProperty("--bg", D.bg);
+    if (D.bgDeep) root.style.setProperty("--bg-deep", D.bgDeep);
+    if (D.accent) root.style.setProperty("--signal", D.accent);
+    if (D.font)   root.style.setProperty("--font-sans", D.font);
 
     (function () {${j}})();
   }

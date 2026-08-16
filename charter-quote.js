@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var CSS = "\n  /* ============================================================\n     THEME TOKENS\n     Everything visual derives from this block.\n     ============================================================ */\n  .cq {\n    --bg:        #265ABE;   /* brand blue — the tint, and the solid discs on the track */\n    --bg-deep:   #1B4593;   /* dropdowns and recessed surfaces — stays opaque, for legibility */\n\n    /* The frosted panel. Declared twice on purpose: browsers without\n       color-mix() keep the literal rgba and still get a sane panel. */\n    --panel:     rgba(38, 90, 190, .58);\n    --panel:     color-mix(in srgb, var(--bg) 58%, transparent);\n    --blur:      18px;\n\n    --on-bg:     #FFFFFF;   /* primary text */\n    --on-bg-mid: rgba(255,255,255,.85);  /* labels, helper copy */\n    --on-bg-low: rgba(255,255,255,.50);  /* placeholders */\n    --line:      rgba(255,255,255,.26);  /* field borders, rules */\n    --line-soft: rgba(255,255,255,.14);\n    --fill:      rgba(255,255,255,.08);  /* field interiors */\n    --fill-hi:   rgba(255,255,255,.16);  /* hover */\n    --signal:    #FFB627;   /* avionics amber — progress, live route */\n    --alert:     #FFC9C2;\n\n    --font-sans: inherit;   /* inherits the page font — set data-font to override */\n    --font-code: var(--font-sans);   /* point at a mono face if you prefer */\n\n    --radius: 5px;          /* fields, buttons, small surfaces */\n    --panel-radius: 12px;   /* the panel's own corners — set data-radius to change */\n    --max: 100%;            /* full width — set data-max-width to cap it */\n  }\n\n  .cq, .cq *, .cq *::before, .cq *::after { box-sizing: border-box; }\n\n  /* Standalone preview only — the build strips this rule entirely. The\n     gradient exists so the frosted panel has something to frost while you\n     iterate; on Webflow it's the page behind the embed that shows through. */\n  .cq {\n    background: var(--bg);\n    color: var(--on-bg);\n    -webkit-font-smoothing: antialiased;\n  }\n\n  .cq {\n    max-width: var(--max);\n    margin: 0 auto;\n    padding: 30px 22px 34px;\n    font-size: 15px;\n    line-height: 1.5;\n\n    /* Frosted glass. Height stays content-driven — never set one here, the\n       panel has to grow as legs are added and shrink on the success screen. */\n    background: var(--panel);\n    -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);\n    backdrop-filter: blur(var(--blur)) saturate(150%);\n    border: 1px solid var(--line-soft);\n    border-radius: var(--panel-radius);\n  }\n\n  /* No backdrop-filter means nothing gets frosted and the panel would just\n     read as washed out. Fall back to the solid brand blue instead. */\n  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {\n    .cq { background: var(--bg); }\n  }\n\n  /* ============================================================\n     THE STEPPER — a flight path, not a progress bar.\n     The aircraft advances along the route as steps complete.\n     ============================================================ */\n  .cq-track { position: relative; padding: 0 0 34px; margin-bottom: 26px; }\n\n  .cq-track-line {\n    position: relative;\n    height: 2px;\n    background: var(--line-soft);\n    margin: 0 6%;\n  }\n  .cq-track-fill {\n    position: absolute; inset: 0 auto 0 0;\n    background: var(--signal);\n    width: 0%;\n    transition: width .55s cubic-bezier(.3,.9,.25,1);\n  }\n\n  .cq-track-plane {\n    position: absolute;\n    top: 50%;\n    left: 0;\n    width: 26px; height: 26px;\n    margin: -13px 0 0 -13px;\n    color: var(--signal);\n    background: var(--bg);\n    padding: 4px;\n    border-radius: 50%;\n    transition: left .55s cubic-bezier(.3,.9,.25,1);\n  }\n  .cq-track-plane svg { width: 100%; height: 100%; display: block; transform: rotate(90deg); }\n\n  .cq-track-nodes {\n    position: absolute;\n    left: 6%; right: 6%;\n    top: 0;\n    display: flex;\n    justify-content: space-between;\n  }\n  .cq-node {\n    position: relative;\n    width: 0;\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n  }\n  .cq-node::before {\n    content: \"\";\n    width: 8px; height: 8px;\n    border-radius: 50%;\n    background: var(--bg);\n    border: 2px solid var(--line);\n    margin-top: -3px;\n    transition: border-color .3s, background .3s;\n  }\n  .cq-node.is-done::before { border-color: var(--signal); background: var(--signal); }\n  .cq-node.is-now::before  { border-color: var(--signal); background: var(--bg); }\n  .cq-node span {\n    position: absolute;\n    top: 16px;\n    white-space: nowrap;\n    font-size: 10.5px;\n    letter-spacing: .1em;\n    text-transform: uppercase;\n    color: var(--on-bg-low);\n    transition: color .3s;\n  }\n  .cq-node.is-now span, .cq-node.is-done span { color: var(--on-bg-mid); }\n  .cq-node:first-child span { left: -2px; }\n  .cq-node:last-child span  { right: -2px; }\n\n  /* ============================================================\n     STEP PANELS\n     ============================================================ */\n  .cq-step { display: none; animation: cq-slide .32s cubic-bezier(.2,.8,.2,1) both; }\n  .cq-step.is-active { display: block; }\n  @keyframes cq-slide { from { opacity: 0; transform: translateX(14px); } }\n  .cq.is-back .cq-step.is-active { animation-name: cq-slide-back; }\n  @keyframes cq-slide-back { from { opacity: 0; transform: translateX(-14px); } }\n\n  .cq-h {\n    font-size: 21px;\n    font-weight: 600;\n    letter-spacing: -.01em;\n    margin: 0 0 4px;\n  }\n  .cq-sub { color: var(--on-bg-mid); font-size: 13.5px; margin: 0 0 22px; }\n\n  /* ---------- Segmented control ---------- */\n  .cq-seg {\n    display: inline-flex;\n    border: 1px solid var(--line);\n    border-radius: var(--radius);\n    overflow: hidden;\n  }\n  .cq-seg button {\n    appearance: none; border: 0; border-left: 1px solid var(--line);\n    background: transparent; color: var(--on-bg-mid);\n    font-family: var(--font-sans); font-size: 13.5px;\n    padding: 9px 17px; cursor: pointer;\n    transition: background .15s, color .15s;\n  }\n  .cq-seg button:first-child { border-left: 0; }\n  .cq-seg button:hover { background: var(--fill); }\n  .cq-seg button[aria-pressed=\"true\"] { background: var(--on-bg); color: var(--bg); font-weight: 600; }\n\n  /* ---------- Route strip ---------- */\n  .cq-legs { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }\n\n  .cq-leg {\n    position: relative;\n    background: var(--fill);\n    border: 1px solid var(--line-soft);\n    border-radius: var(--radius);\n    padding: 15px 17px 17px;\n    animation: cq-in .28s ease both;\n  }\n  @keyframes cq-in { from { opacity: 0; transform: translateY(-6px); } }\n\n  .cq-leg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }\n  .cq-leg-no { font-family: var(--font-code); font-size: 10.5px; letter-spacing: .14em; color: var(--on-bg-low); text-transform: uppercase; }\n  .cq-leg-drop {\n    appearance: none; background: none; border: 0; color: var(--on-bg-low);\n    font-family: var(--font-sans); font-size: 12px; cursor: pointer;\n    padding: 3px 6px; border-radius: var(--radius);\n  }\n  .cq-leg-drop:hover { color: var(--on-bg); background: var(--fill-hi); }\n\n  .cq-route { display: grid; grid-template-columns: 1fr 74px 1fr; align-items: start; gap: 4px; }\n  .cq-port { position: relative; min-width: 0; }\n  .cq-port.is-to { text-align: right; }\n\n  .cq-port input {\n    width: 100%; border: 0; border-bottom: 1.5px solid var(--line);\n    background: transparent; padding: 2px 0 6px;\n    font-family: var(--font-code); font-size: 27px; font-weight: 600;\n    letter-spacing: .06em; color: var(--on-bg); text-transform: uppercase;\n    outline: none; transition: border-color .15s;\n  }\n  .cq-port.is-to input { text-align: right; }\n  .cq-port input::placeholder { color: rgba(255,255,255,.32); font-weight: 500; }\n  .cq-port input:focus { border-bottom-color: var(--signal); }\n  .cq-port.has-error input { border-bottom-color: var(--alert); }\n\n  .cq-port-name {\n    font-size: 11.5px; color: var(--on-bg-mid); margin-top: 6px; min-height: 16px;\n    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;\n  }\n\n  .cq-path { position: relative; height: 40px; display: flex; align-items: center; justify-content: center; }\n  .cq-path::before {\n    content: \"\"; position: absolute; left: 2px; right: 2px; top: 50%;\n    height: 1px; background: var(--line);\n    transform: scaleX(.25); transform-origin: left center;\n    transition: transform .5s cubic-bezier(.2,.8,.2,1), background .3s;\n  }\n  .cq-leg.is-routed .cq-path::before { transform: scaleX(1); background: var(--signal); }\n  .cq-path svg {\n    position: relative; width: 15px; height: 15px;\n    color: var(--line); padding: 0 6px;\n    transition: color .3s, transform .5s cubic-bezier(.2,.8,.2,1);\n    transform: translateX(-14px);\n  }\n  .cq-leg.is-routed .cq-path svg { color: var(--signal); transform: translateX(0); }\n\n  /* ---------- Fields ---------- */\n  .cq-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }\n  .cq-field { flex: 1 1 180px; min-width: 0; }\n  .cq-field.is-narrow { flex: 0 1 132px; }\n  .cq-field.is-full { flex-basis: 100%; }\n\n  .cq-label { display: block; font-size: 11.5px; letter-spacing: .04em; color: var(--on-bg-mid); margin-bottom: 5px; }\n\n  .cq-input, .cq-select, .cq-area {\n    width: 100%;\n    font-family: var(--font-sans); font-size: 14.5px;\n    color: var(--on-bg); background: var(--fill);\n    border: 1px solid var(--line); border-radius: var(--radius);\n    padding: 10px 12px; outline: none;\n    transition: border-color .15s, box-shadow .15s, background .15s;\n  }\n  .cq-input::placeholder, .cq-area::placeholder { color: var(--on-bg-low); }\n  .cq-area { resize: vertical; min-height: 78px; }\n  .cq-input:hover, .cq-select:hover, .cq-area:hover { background: var(--fill-hi); }\n\n  .cq-select {\n    appearance: none; padding-right: 32px;\n    background-image: url(\"data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4.5L6 8.5L10 4.5' stroke='%23ffffff' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\");\n    background-repeat: no-repeat; background-position: right 11px center; background-size: 12px;\n  }\n  .cq-select option { background: var(--bg-deep); color: #fff; }\n\n  /* date/time pickers need coaxing to show light on a dark field */\n  .cq-input[type=\"date\"], .cq-input[type=\"time\"] { color-scheme: dark; }\n\n  .cq-input:focus, .cq-select:focus, .cq-area:focus {\n    border-color: var(--signal);\n    box-shadow: 0 0 0 3px rgba(255,182,39,.28);\n  }\n  .has-error .cq-input, .has-error .cq-select { border-color: var(--alert); }\n  .cq-err { display: none; color: var(--alert); font-size: 11.5px; margin-top: 4px; }\n  .has-error .cq-err { display: block; }\n\n  /* Passenger stepper */\n  .cq-count { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius); background: var(--fill); }\n  .cq-count button {\n    appearance: none; border: 0; background: none; width: 40px;\n    font-size: 18px; color: var(--on-bg-mid); cursor: pointer; line-height: 1;\n  }\n  .cq-count button:hover:not(:disabled) { color: var(--on-bg); background: var(--fill-hi); }\n  .cq-count button:disabled { opacity: .28; cursor: default; }\n  .cq-count output { flex: 1; text-align: center; align-self: center; font-family: var(--font-code); font-size: 15.5px; font-weight: 600; padding: 10px 0; }\n\n  /* Checkboxes */\n  .cq-checks { display: flex; flex-wrap: wrap; gap: 11px 22px; margin-top: 18px; }\n  .cq-check { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; cursor: pointer; color: var(--on-bg-mid); }\n  .cq-check:hover { color: var(--on-bg); }\n  .cq-check input { margin: 2px 0 0; accent-color: var(--signal); width: 15px; height: 15px; flex: none; }\n  .cq-consent { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); }\n  .cq-consent .cq-check { font-size: 12px; line-height: 1.45; }\n\n  /* ---------- Airport suggestions ---------- */\n  .cq-sugg {\n    position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: 0;\n    background: var(--bg-deep);\n    border: 1px solid var(--line);\n    border-radius: var(--radius);\n    box-shadow: 0 16px 40px -14px rgba(0,0,0,.5);\n    max-height: 244px; overflow-y: auto; display: none; text-align: left;\n  }\n  .cq-sugg.is-open { display: block; }\n  .cq-sugg ul { margin: 0; padding: 0; }\n  .cq-sugg li {\n    list-style: none; padding: 9px 12px;\n    display: flex; align-items: baseline; gap: 10px;\n    cursor: pointer; border-bottom: 1px solid var(--line-soft);\n  }\n  .cq-sugg li:last-child { border-bottom: 0; }\n  .cq-sugg li[aria-selected=\"true\"], .cq-sugg li:hover { background: rgba(255,255,255,.12); }\n  .cq-sugg .code { font-family: var(--font-code); font-size: 13px; font-weight: 700; letter-spacing: .04em; flex: none; width: 44px; }\n  .cq-sugg .place { font-size: 13px; color: var(--on-bg-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n  .cq-sugg .iata { font-family: var(--font-code); font-size: 10.5px; color: var(--on-bg-low); margin-left: auto; flex: none; }\n  .cq-sugg .cq-empty { padding: 13px; font-size: 13px; color: var(--on-bg-mid); }\n\n  /* ---------- Review step ---------- */\n  .cq-review { border: 1px solid var(--line-soft); border-radius: var(--radius); overflow: hidden; }\n  .cq-review-block { padding: 15px 17px; border-bottom: 1px solid var(--line-soft); }\n  .cq-review-block:last-child { border-bottom: 0; }\n  .cq-review-title { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--on-bg-low); margin: 0 0 10px; }\n  .cq-review-leg { display: flex; align-items: baseline; gap: 12px; padding: 6px 0; }\n  .cq-review-leg .rt {\n    font-family: var(--font-code); font-size: 17px; font-weight: 600; letter-spacing: .05em;\n    white-space: nowrap; flex: none;\n  }\n  .cq-review-leg .rt em { font-style: normal; color: var(--signal); padding: 0 6px; }\n  .cq-review-leg .rw { font-size: 12.5px; color: var(--on-bg-mid); text-align: right; margin-left: auto; }\n  .cq-review-pairs { display: flex; flex-wrap: wrap; gap: 8px 28px; font-size: 13.5px; }\n  .cq-review-pairs div { color: var(--on-bg-mid); }\n  .cq-review-pairs b { color: var(--on-bg); font-weight: 600; }\n\n  .cq-edit {\n    appearance: none; background: none; border: 0; padding: 0;\n    color: var(--signal); font-family: var(--font-sans); font-size: 12px;\n    cursor: pointer; text-decoration: underline; text-underline-offset: 3px;\n  }\n  .cq-review-head { display: flex; justify-content: space-between; align-items: baseline; }\n\n  /* ---------- Actions ---------- */\n  .cq-add {\n    appearance: none; background: none;\n    border: 1px dashed var(--line); border-radius: var(--radius);\n    color: var(--on-bg-mid); font-family: var(--font-sans); font-size: 13px;\n    padding: 11px; width: 100%; cursor: pointer; margin-top: 12px;\n    transition: border-color .15s, color .15s, background .15s;\n  }\n  .cq-add:hover { border-color: var(--signal); color: var(--signal); background: var(--fill); }\n  .cq-add[hidden] { display: none; }\n\n  .cq-nav { display: flex; gap: 12px; align-items: center; margin-top: 28px; }\n  .cq-back {\n    appearance: none; background: none; border: 1px solid var(--line);\n    border-radius: var(--radius); color: var(--on-bg-mid);\n    font-family: var(--font-sans); font-size: 14.5px; padding: 14px 22px; cursor: pointer;\n    transition: background .15s, color .15s;\n  }\n  .cq-back:hover { background: var(--fill-hi); color: var(--on-bg); }\n  .cq-back[hidden] { display: none; }\n\n  .cq-next {\n    appearance: none; flex: 1; border: 0; border-radius: var(--radius);\n    background: var(--on-bg); color: var(--bg);\n    font-family: var(--font-sans); font-size: 15px; font-weight: 600;\n    padding: 15px; cursor: pointer;\n    transition: background .18s, color .18s, opacity .18s;\n  }\n  .cq-next:hover:not(:disabled) { background: var(--signal); color: var(--bg-deep); }\n  .cq-next:disabled { opacity: .5; cursor: default; }\n\n  .cq-foot { margin-top: 13px; font-size: 11.5px; color: var(--on-bg-low); text-align: center; }\n\n  .cq-formerr {\n    display: none; margin-top: 16px; padding: 11px 14px;\n    border-left: 2px solid var(--alert); background: rgba(0,0,0,.16);\n    font-size: 13px; color: var(--alert);\n  }\n  .cq-formerr.is-open { display: block; }\n\n  /* ---------- Success ---------- */\n  .cq-done { display: none; padding: 40px 0; text-align: center; }\n  .cq-done.is-open { display: block; }\n  .cq-done-mark { width: 44px; height: 44px; margin: 0 auto 20px; color: var(--signal); }\n  .cq-done-mark svg { width: 100%; height: 100%; }\n  .cq-done h2 { font-size: 21px; font-weight: 600; margin: 0 0 10px; }\n  .cq-done p { color: var(--on-bg-mid); font-size: 14px; max-width: 400px; margin: 0 auto 8px; }\n  .cq-ref { font-family: var(--font-code); font-size: 13px; letter-spacing: .08em; color: var(--on-bg); margin-top: 22px; }\n  .cq-debug {\n    text-align: left; margin-top: 26px; font-family: ui-monospace, Menlo, Consolas, monospace;\n    font-size: 11px; background: rgba(0,0,0,.22); padding: 15px; border-radius: var(--radius);\n    max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: var(--on-bg-mid);\n  }\n\n  /* ---------- Access + responsive ---------- */\n  .cq :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }\n  .cq-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }\n\n  @media (max-width: 560px) {\n    .cq { padding: 24px 16px 28px; }\n    .cq-route { grid-template-columns: 1fr; gap: 0; }\n    .cq-port.is-to, .cq-port.is-to input { text-align: left; }\n    .cq-port input { font-size: 24px; }\n    .cq-path { height: 34px; justify-content: flex-start; padding-left: 9px; }\n    .cq-path::before {\n      left: 11px; right: auto; top: 0; bottom: 0; height: auto; width: 1px;\n      transform: scaleY(.25); transform-origin: top center;\n    }\n    .cq-leg.is-routed .cq-path::before { transform: scaleY(1); }\n    .cq-path svg, .cq-leg.is-routed .cq-path svg { transform: rotate(90deg); padding: 6px 0; }\n    .cq-node span { font-size: 9.5px; letter-spacing: .06em; }\n    .cq-review-leg { flex-wrap: wrap; }\n    .cq-review-leg .rw { margin-left: 0; text-align: left; width: 100%; }\n  }\n\n  @media (prefers-reduced-motion: reduce) {\n    .cq, .cq * { animation-duration: .01ms !important; transition-duration: .01ms !important; }\n  }\n";
+  var CSS = "\n  /* ============================================================\n     THEME TOKENS\n     Everything visual derives from this block.\n     ============================================================ */\n  .cq {\n    --bg:        #265ABE;   /* brand blue — the widget surface */\n    --bg-deep:   #1B4593;   /* recessed panels, pressed states */\n    --on-bg:     #FFFFFF;   /* primary text */\n    --on-bg-mid: rgba(255,255,255,.85);  /* labels, helper copy */\n    --on-bg-low: rgba(255,255,255,.50);  /* placeholders */\n    --line:      rgba(255,255,255,.26);  /* field borders, rules */\n    --line-soft: rgba(255,255,255,.14);\n    --fill:      rgba(255,255,255,.08);  /* field interiors */\n    --fill-hi:   rgba(255,255,255,.16);  /* hover */\n    --signal:    #FFB627;   /* avionics amber — progress, live route */\n    --alert:     #FFC9C2;\n\n    --font-sans: inherit;   /* inherits the page font — set data-font to override */\n    --font-code: var(--font-sans);   /* point at a mono face if you prefer */\n\n    --radius: 5px;\n    --max: 700px;\n  }\n\n  .cq, .cq *, .cq *::before, .cq *::after { box-sizing: border-box; }\n\n  .cq {\n    background: var(--bg);\n    color: var(--on-bg);\n    -webkit-font-smoothing: antialiased;\n  }\n\n  .cq {\n    max-width: var(--max);\n    margin: 0 auto;\n    padding: 30px 22px 34px;\n    font-size: 15px;\n    line-height: 1.5;\n  }\n\n  /* ============================================================\n     THE STEPPER — a flight path, not a progress bar.\n     The aircraft advances along the route as steps complete.\n     ============================================================ */\n  .cq-track { position: relative; padding: 0 0 34px; margin-bottom: 26px; }\n\n  .cq-track-line {\n    position: relative;\n    height: 2px;\n    background: var(--line-soft);\n    margin: 0 6%;\n  }\n  .cq-track-fill {\n    position: absolute; inset: 0 auto 0 0;\n    background: var(--signal);\n    width: 0%;\n    transition: width .55s cubic-bezier(.3,.9,.25,1);\n  }\n\n  .cq-track-plane {\n    position: absolute;\n    top: 50%;\n    left: 0;\n    width: 26px; height: 26px;\n    margin: -13px 0 0 -13px;\n    color: var(--signal);\n    background: var(--bg);\n    padding: 4px;\n    border-radius: 50%;\n    transition: left .55s cubic-bezier(.3,.9,.25,1);\n  }\n  .cq-track-plane svg { width: 100%; height: 100%; display: block; transform: rotate(90deg); }\n\n  .cq-track-nodes {\n    position: absolute;\n    left: 6%; right: 6%;\n    top: 0;\n    display: flex;\n    justify-content: space-between;\n  }\n  .cq-node {\n    position: relative;\n    width: 0;\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n  }\n  .cq-node::before {\n    content: \"\";\n    width: 8px; height: 8px;\n    border-radius: 50%;\n    background: var(--bg);\n    border: 2px solid var(--line);\n    margin-top: -3px;\n    transition: border-color .3s, background .3s;\n  }\n  .cq-node.is-done::before { border-color: var(--signal); background: var(--signal); }\n  .cq-node.is-now::before  { border-color: var(--signal); background: var(--bg); }\n  .cq-node span {\n    position: absolute;\n    top: 16px;\n    white-space: nowrap;\n    font-size: 10.5px;\n    letter-spacing: .1em;\n    text-transform: uppercase;\n    color: var(--on-bg-low);\n    transition: color .3s;\n  }\n  .cq-node.is-now span, .cq-node.is-done span { color: var(--on-bg-mid); }\n  .cq-node:first-child span { left: -2px; }\n  .cq-node:last-child span  { right: -2px; }\n\n  /* ============================================================\n     STEP PANELS\n     ============================================================ */\n  .cq-step { display: none; animation: cq-slide .32s cubic-bezier(.2,.8,.2,1) both; }\n  .cq-step.is-active { display: block; }\n  @keyframes cq-slide { from { opacity: 0; transform: translateX(14px); } }\n  .cq.is-back .cq-step.is-active { animation-name: cq-slide-back; }\n  @keyframes cq-slide-back { from { opacity: 0; transform: translateX(-14px); } }\n\n  .cq-h {\n    font-size: 21px;\n    font-weight: 600;\n    letter-spacing: -.01em;\n    margin: 0 0 4px;\n  }\n  .cq-sub { color: var(--on-bg-mid); font-size: 13.5px; margin: 0 0 22px; }\n\n  /* ---------- Segmented control ---------- */\n  .cq-seg {\n    display: inline-flex;\n    border: 1px solid var(--line);\n    border-radius: var(--radius);\n    overflow: hidden;\n  }\n  .cq-seg button {\n    appearance: none; border: 0; border-left: 1px solid var(--line);\n    background: transparent; color: var(--on-bg-mid);\n    font-family: var(--font-sans); font-size: 13.5px;\n    padding: 9px 17px; cursor: pointer;\n    transition: background .15s, color .15s;\n  }\n  .cq-seg button:first-child { border-left: 0; }\n  .cq-seg button:hover { background: var(--fill); }\n  .cq-seg button[aria-pressed=\"true\"] { background: var(--on-bg); color: var(--bg); font-weight: 600; }\n\n  /* ---------- Route strip ---------- */\n  .cq-legs { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }\n\n  .cq-leg {\n    position: relative;\n    background: var(--fill);\n    border: 1px solid var(--line-soft);\n    border-radius: var(--radius);\n    padding: 15px 17px 17px;\n    animation: cq-in .28s ease both;\n  }\n  @keyframes cq-in { from { opacity: 0; transform: translateY(-6px); } }\n\n  .cq-leg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }\n  .cq-leg-no { font-family: var(--font-code); font-size: 10.5px; letter-spacing: .14em; color: var(--on-bg-low); text-transform: uppercase; }\n  .cq-leg-drop {\n    appearance: none; background: none; border: 0; color: var(--on-bg-low);\n    font-family: var(--font-sans); font-size: 12px; cursor: pointer;\n    padding: 3px 6px; border-radius: var(--radius);\n  }\n  .cq-leg-drop:hover { color: var(--on-bg); background: var(--fill-hi); }\n\n  .cq-route { display: grid; grid-template-columns: 1fr 74px 1fr; align-items: start; gap: 4px; }\n  .cq-port { position: relative; min-width: 0; }\n  .cq-port.is-to { text-align: right; }\n\n  .cq-port input {\n    width: 100%; border: 0; border-bottom: 1.5px solid var(--line);\n    background: transparent; padding: 2px 0 6px;\n    font-family: var(--font-code); font-size: 27px; font-weight: 600;\n    letter-spacing: .06em; color: var(--on-bg); text-transform: uppercase;\n    outline: none; transition: border-color .15s;\n  }\n  .cq-port.is-to input { text-align: right; }\n  .cq-port input::placeholder { color: rgba(255,255,255,.32); font-weight: 500; }\n  .cq-port input:focus { border-bottom-color: var(--signal); }\n  .cq-port.has-error input { border-bottom-color: var(--alert); }\n\n  .cq-port-name {\n    font-size: 11.5px; color: var(--on-bg-mid); margin-top: 6px; min-height: 16px;\n    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;\n  }\n\n  .cq-path { position: relative; height: 40px; display: flex; align-items: center; justify-content: center; }\n  .cq-path::before {\n    content: \"\"; position: absolute; left: 2px; right: 2px; top: 50%;\n    height: 1px; background: var(--line);\n    transform: scaleX(.25); transform-origin: left center;\n    transition: transform .5s cubic-bezier(.2,.8,.2,1), background .3s;\n  }\n  .cq-leg.is-routed .cq-path::before { transform: scaleX(1); background: var(--signal); }\n  .cq-path svg {\n    position: relative; width: 15px; height: 15px;\n    color: var(--line); padding: 0 6px;\n    transition: color .3s, transform .5s cubic-bezier(.2,.8,.2,1);\n    transform: translateX(-14px);\n  }\n  .cq-leg.is-routed .cq-path svg { color: var(--signal); transform: translateX(0); }\n\n  /* ---------- Fields ---------- */\n  .cq-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }\n  .cq-field { flex: 1 1 180px; min-width: 0; }\n  .cq-field.is-narrow { flex: 0 1 132px; }\n  .cq-field.is-full { flex-basis: 100%; }\n\n  .cq-label { display: block; font-size: 11.5px; letter-spacing: .04em; color: var(--on-bg-mid); margin-bottom: 5px; }\n\n  .cq-input, .cq-select, .cq-area {\n    width: 100%;\n    font-family: var(--font-sans); font-size: 14.5px;\n    color: var(--on-bg); background: var(--fill);\n    border: 1px solid var(--line); border-radius: var(--radius);\n    padding: 10px 12px; outline: none;\n    transition: border-color .15s, box-shadow .15s, background .15s;\n  }\n  .cq-input::placeholder, .cq-area::placeholder { color: var(--on-bg-low); }\n  .cq-area { resize: vertical; min-height: 78px; }\n  .cq-input:hover, .cq-select:hover, .cq-area:hover { background: var(--fill-hi); }\n\n  .cq-select {\n    appearance: none; padding-right: 32px;\n    background-image: url(\"data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4.5L6 8.5L10 4.5' stroke='%23ffffff' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\");\n    background-repeat: no-repeat; background-position: right 11px center; background-size: 12px;\n  }\n  .cq-select option { background: var(--bg-deep); color: #fff; }\n\n  /* date/time pickers need coaxing to show light on a dark field */\n  .cq-input[type=\"date\"], .cq-input[type=\"time\"] { color-scheme: dark; }\n\n  .cq-input:focus, .cq-select:focus, .cq-area:focus {\n    border-color: var(--signal);\n    box-shadow: 0 0 0 3px rgba(255,182,39,.28);\n  }\n  .has-error .cq-input, .has-error .cq-select { border-color: var(--alert); }\n  .cq-err { display: none; color: var(--alert); font-size: 11.5px; margin-top: 4px; }\n  .has-error .cq-err { display: block; }\n\n  /* Passenger stepper */\n  .cq-count { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius); background: var(--fill); }\n  .cq-count button {\n    appearance: none; border: 0; background: none; width: 40px;\n    font-size: 18px; color: var(--on-bg-mid); cursor: pointer; line-height: 1;\n  }\n  .cq-count button:hover:not(:disabled) { color: var(--on-bg); background: var(--fill-hi); }\n  .cq-count button:disabled { opacity: .28; cursor: default; }\n  .cq-count output { flex: 1; text-align: center; align-self: center; font-family: var(--font-code); font-size: 15.5px; font-weight: 600; padding: 10px 0; }\n\n  /* Checkboxes */\n  .cq-checks { display: flex; flex-wrap: wrap; gap: 11px 22px; margin-top: 18px; }\n  .cq-check { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; cursor: pointer; color: var(--on-bg-mid); }\n  .cq-check:hover { color: var(--on-bg); }\n  .cq-check input { margin: 2px 0 0; accent-color: var(--signal); width: 15px; height: 15px; flex: none; }\n  .cq-consent { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); }\n  .cq-consent .cq-check { font-size: 12px; line-height: 1.45; }\n\n  /* ---------- Airport suggestions ---------- */\n  .cq-sugg {\n    position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: 0;\n    background: var(--bg-deep);\n    border: 1px solid var(--line);\n    border-radius: var(--radius);\n    box-shadow: 0 16px 40px -14px rgba(0,0,0,.5);\n    max-height: 244px; overflow-y: auto; display: none; text-align: left;\n  }\n  .cq-sugg.is-open { display: block; }\n  .cq-sugg ul { margin: 0; padding: 0; }\n  .cq-sugg li {\n    list-style: none; padding: 9px 12px;\n    display: flex; align-items: baseline; gap: 10px;\n    cursor: pointer; border-bottom: 1px solid var(--line-soft);\n  }\n  .cq-sugg li:last-child { border-bottom: 0; }\n  .cq-sugg li[aria-selected=\"true\"], .cq-sugg li:hover { background: rgba(255,255,255,.12); }\n  .cq-sugg .code { font-family: var(--font-code); font-size: 13px; font-weight: 700; letter-spacing: .04em; flex: none; width: 44px; }\n  .cq-sugg .place { font-size: 13px; color: var(--on-bg-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n  .cq-sugg .iata { font-family: var(--font-code); font-size: 10.5px; color: var(--on-bg-low); margin-left: auto; flex: none; }\n  .cq-sugg .cq-empty { padding: 13px; font-size: 13px; color: var(--on-bg-mid); }\n\n  /* ---------- Review step ---------- */\n  .cq-review { border: 1px solid var(--line-soft); border-radius: var(--radius); overflow: hidden; }\n  .cq-review-block { padding: 15px 17px; border-bottom: 1px solid var(--line-soft); }\n  .cq-review-block:last-child { border-bottom: 0; }\n  .cq-review-title { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--on-bg-low); margin: 0 0 10px; }\n  .cq-review-leg { display: flex; align-items: baseline; gap: 12px; padding: 6px 0; }\n  .cq-review-leg .rt {\n    font-family: var(--font-code); font-size: 17px; font-weight: 600; letter-spacing: .05em;\n    white-space: nowrap; flex: none;\n  }\n  .cq-review-leg .rt em { font-style: normal; color: var(--signal); padding: 0 6px; }\n  .cq-review-leg .rw { font-size: 12.5px; color: var(--on-bg-mid); text-align: right; margin-left: auto; }\n  .cq-review-pairs { display: flex; flex-wrap: wrap; gap: 8px 28px; font-size: 13.5px; }\n  .cq-review-pairs div { color: var(--on-bg-mid); }\n  .cq-review-pairs b { color: var(--on-bg); font-weight: 600; }\n\n  .cq-edit {\n    appearance: none; background: none; border: 0; padding: 0;\n    color: var(--signal); font-family: var(--font-sans); font-size: 12px;\n    cursor: pointer; text-decoration: underline; text-underline-offset: 3px;\n  }\n  .cq-review-head { display: flex; justify-content: space-between; align-items: baseline; }\n\n  /* ---------- Actions ---------- */\n  .cq-add {\n    appearance: none; background: none;\n    border: 1px dashed var(--line); border-radius: var(--radius);\n    color: var(--on-bg-mid); font-family: var(--font-sans); font-size: 13px;\n    padding: 11px; width: 100%; cursor: pointer; margin-top: 12px;\n    transition: border-color .15s, color .15s, background .15s;\n  }\n  .cq-add:hover { border-color: var(--signal); color: var(--signal); background: var(--fill); }\n  .cq-add[hidden] { display: none; }\n\n  .cq-nav { display: flex; gap: 12px; align-items: center; margin-top: 28px; }\n  .cq-back {\n    appearance: none; background: none; border: 1px solid var(--line);\n    border-radius: var(--radius); color: var(--on-bg-mid);\n    font-family: var(--font-sans); font-size: 14.5px; padding: 14px 22px; cursor: pointer;\n    transition: background .15s, color .15s;\n  }\n  .cq-back:hover { background: var(--fill-hi); color: var(--on-bg); }\n  .cq-back[hidden] { display: none; }\n\n  .cq-next {\n    appearance: none; flex: 1; border: 0; border-radius: var(--radius);\n    background: var(--on-bg); color: var(--bg);\n    font-family: var(--font-sans); font-size: 15px; font-weight: 600;\n    padding: 15px; cursor: pointer;\n    transition: background .18s, color .18s, opacity .18s;\n  }\n  .cq-next:hover:not(:disabled) { background: var(--signal); color: var(--bg-deep); }\n  .cq-next:disabled { opacity: .5; cursor: default; }\n\n  .cq-foot { margin-top: 13px; font-size: 11.5px; color: var(--on-bg-low); text-align: center; }\n\n  .cq-formerr {\n    display: none; margin-top: 16px; padding: 11px 14px;\n    border-left: 2px solid var(--alert); background: rgba(0,0,0,.16);\n    font-size: 13px; color: var(--alert);\n  }\n  .cq-formerr.is-open { display: block; }\n\n  /* ---------- Success ---------- */\n  .cq-done { display: none; padding: 40px 0; text-align: center; }\n  .cq-done.is-open { display: block; }\n  .cq-done-mark { width: 44px; height: 44px; margin: 0 auto 20px; color: var(--signal); }\n  .cq-done-mark svg { width: 100%; height: 100%; }\n  .cq-done h2 { font-size: 21px; font-weight: 600; margin: 0 0 10px; }\n  .cq-done p { color: var(--on-bg-mid); font-size: 14px; max-width: 400px; margin: 0 auto 8px; }\n  .cq-ref { font-family: var(--font-code); font-size: 13px; letter-spacing: .08em; color: var(--on-bg); margin-top: 22px; }\n  .cq-debug {\n    text-align: left; margin-top: 26px; font-family: ui-monospace, Menlo, Consolas, monospace;\n    font-size: 11px; background: rgba(0,0,0,.22); padding: 15px; border-radius: var(--radius);\n    max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: var(--on-bg-mid);\n  }\n\n  /* ---------- Access + responsive ---------- */\n  .cq :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }\n  .cq-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }\n\n  @media (max-width: 560px) {\n    .cq { padding: 24px 16px 28px; }\n    .cq-route { grid-template-columns: 1fr; gap: 0; }\n    .cq-port.is-to, .cq-port.is-to input { text-align: left; }\n    .cq-port input { font-size: 24px; }\n    .cq-path { height: 34px; justify-content: flex-start; padding-left: 9px; }\n    .cq-path::before {\n      left: 11px; right: auto; top: 0; bottom: 0; height: auto; width: 1px;\n      transform: scaleY(.25); transform-origin: top center;\n    }\n    .cq-leg.is-routed .cq-path::before { transform: scaleY(1); }\n    .cq-path svg, .cq-leg.is-routed .cq-path svg { transform: rotate(90deg); padding: 6px 0; }\n    .cq-node span { font-size: 9.5px; letter-spacing: .06em; }\n    .cq-review-leg { flex-wrap: wrap; }\n    .cq-review-leg .rw { margin-left: 0; text-align: left; width: 100%; }\n  }\n\n  @media (prefers-reduced-motion: reduce) {\n    .cq, .cq * { animation-duration: .01ms !important; transition-duration: .01ms !important; }\n  }\n";
   var MARKUP = "<div class=\"cq\" id=\"cqRoot\">\n\n  <!-- The stepper: a route line the aircraft advances along -->\n  <div class=\"cq-track\" role=\"group\" aria-label=\"Progress\">\n    <div class=\"cq-track-line\">\n      <div class=\"cq-track-fill\" id=\"cqFill\"></div>\n      <div class=\"cq-track-plane\" id=\"cqPlane\" aria-hidden=\"true\"></div>\n    </div>\n    <div class=\"cq-track-nodes\" id=\"cqNodes\">\n      <div class=\"cq-node\"><span>Trip</span></div>\n      <div class=\"cq-node\"><span>Aircraft</span></div>\n      <div class=\"cq-node\"><span>Contact</span></div>\n      <div class=\"cq-node\"><span>Review</span></div>\n    </div>\n  </div>\n\n  <form id=\"cqForm\" novalidate>\n\n    <!-- ===== STEP 1 — TRIP ===== -->\n    <section class=\"cq-step is-active\" data-step=\"0\">\n      <h2 class=\"cq-h\">Where are you flying?</h2>\n      <p class=\"cq-sub\">Enter an airport code, or search by city.</p>\n\n      <div class=\"cq-seg\" role=\"group\" aria-label=\"Trip type\">\n        <button type=\"button\" data-trip=\"oneway\" aria-pressed=\"true\">One way</button>\n        <button type=\"button\" data-trip=\"return\" aria-pressed=\"false\">Round trip</button>\n        <button type=\"button\" data-trip=\"multi\"  aria-pressed=\"false\">Multi-city</button>\n      </div>\n\n      <div class=\"cq-legs\" id=\"cqLegs\"></div>\n      <button type=\"button\" class=\"cq-add\" id=\"cqAdd\" hidden>Add another leg</button>\n\n      <div class=\"cq-checks\">\n        <label class=\"cq-check\"><input type=\"checkbox\" id=\"cqFlex\"> My dates are flexible</label>\n      </div>\n    </section>\n\n    <!-- ===== STEP 2 — AIRCRAFT ===== -->\n    <section class=\"cq-step\" data-step=\"1\">\n      <h2 class=\"cq-h\">Who and what is on board?</h2>\n      <p class=\"cq-sub\">This shapes which aircraft we quote. Nothing here is binding.</p>\n\n      <div class=\"cq-row\">\n        <div class=\"cq-field is-narrow\">\n          <label class=\"cq-label\" for=\"cqPaxDec\">Passengers</label>\n          <div class=\"cq-count\">\n            <button type=\"button\" id=\"cqPaxDec\" aria-label=\"One fewer passenger\">&minus;</button>\n            <output id=\"cqPax\" aria-live=\"polite\">2</output>\n            <button type=\"button\" id=\"cqPaxInc\" aria-label=\"One more passenger\">+</button>\n          </div>\n        </div>\n        <div class=\"cq-field\">\n          <label class=\"cq-label\" for=\"cqCat\">Aircraft preference</label>\n          <select class=\"cq-select\" id=\"cqCat\">\n            <option value=\"\">No preference — recommend one</option>\n            <option>Turboprop</option>\n            <option>Light jet</option>\n            <option>Midsize jet</option>\n            <option>Super-midsize jet</option>\n            <option>Heavy jet</option>\n            <option>Ultra-long-range</option>\n            <option>Airliner</option>\n          </select>\n        </div>\n        <div class=\"cq-field\">\n          <label class=\"cq-label\" for=\"cqBags\">Baggage</label>\n          <select class=\"cq-select\" id=\"cqBags\">\n            <option value=\"\">Standard carry-on and checked</option>\n            <option>Golf clubs</option>\n            <option>Ski or snowboard equipment</option>\n            <option>Oversized or unusual items</option>\n          </select>\n        </div>\n      </div>\n\n      <div class=\"cq-checks\">\n        <label class=\"cq-check\"><input type=\"checkbox\" id=\"cqPets\"> Travelling with pets</label>\n        <label class=\"cq-check\"><input type=\"checkbox\" id=\"cqCater\"> I'd like catering arranged</label>\n        <label class=\"cq-check\"><input type=\"checkbox\" id=\"cqGround\"> I need ground transport at both ends</label>\n      </div>\n    </section>\n\n    <!-- ===== STEP 3 — CONTACT ===== -->\n    <section class=\"cq-step\" data-step=\"2\">\n      <h2 class=\"cq-h\">Where should we send the quote?</h2>\n      <p class=\"cq-sub\">Quotes move quickly, so we'll reach out by whichever route is fastest.</p>\n\n      <div class=\"cq-row\">\n        <div class=\"cq-field\" data-wrap=\"name\">\n          <label class=\"cq-label\" for=\"cqName\">Full name</label>\n          <input class=\"cq-input\" id=\"cqName\" autocomplete=\"name\">\n          <p class=\"cq-err\">Enter your name.</p>\n        </div>\n        <div class=\"cq-field\" data-wrap=\"email\">\n          <label class=\"cq-label\" for=\"cqEmail\">Email</label>\n          <input class=\"cq-input\" id=\"cqEmail\" type=\"email\" autocomplete=\"email\" inputmode=\"email\">\n          <p class=\"cq-err\">Enter an email we can reply to.</p>\n        </div>\n      </div>\n\n      <div class=\"cq-row\">\n        <div class=\"cq-field\" data-wrap=\"phone\">\n          <label class=\"cq-label\" for=\"cqPhone\">Phone</label>\n          <input class=\"cq-input\" id=\"cqPhone\" type=\"tel\" autocomplete=\"tel\" inputmode=\"tel\">\n          <p class=\"cq-err\">Enter a phone number — we may need to call about availability.</p>\n        </div>\n        <div class=\"cq-field\">\n          <label class=\"cq-label\" for=\"cqBehalf\">Booking for</label>\n          <select class=\"cq-select\" id=\"cqBehalf\">\n            <option>Myself</option>\n            <option>My company</option>\n            <option>A client (travel agent or concierge)</option>\n          </select>\n        </div>\n      </div>\n\n      <div class=\"cq-row\">\n        <div class=\"cq-field is-full\">\n          <label class=\"cq-label\" for=\"cqNotes\">Anything else we should know</label>\n          <textarea class=\"cq-area\" id=\"cqNotes\" placeholder=\"Preferred operator, arrival window, accessibility needs, onboard requests.\"></textarea>\n        </div>\n      </div>\n\n      <div class=\"cq-consent\">\n        <label class=\"cq-check\">\n          <input type=\"checkbox\" id=\"cqSms\">\n          Text me about this request. Message and data rates may apply; reply STOP to opt out.\n        </label>\n      </div>\n\n      <div class=\"cq-hp\" aria-hidden=\"true\">\n        <label>Leave this empty<input type=\"text\" id=\"cqHp\" tabindex=\"-1\" autocomplete=\"off\"></label>\n      </div>\n    </section>\n\n    <!-- ===== STEP 4 — REVIEW ===== -->\n    <section class=\"cq-step\" data-step=\"3\">\n      <h2 class=\"cq-h\">Does this look right?</h2>\n      <p class=\"cq-sub\">Check the itinerary before we price it.</p>\n      <div class=\"cq-review\" id=\"cqReview\"></div>\n    </section>\n\n    <div class=\"cq-formerr\" id=\"cqFormErr\" role=\"alert\"></div>\n\n    <div class=\"cq-nav\">\n      <button type=\"button\" class=\"cq-back\" id=\"cqBack\" hidden>Back</button>\n      <button type=\"submit\" class=\"cq-next\" id=\"cqNext\">Continue</button>\n    </div>\n    <p class=\"cq-foot\" id=\"cqFoot\">Most requests are answered within the hour.</p>\n  </form>\n\n  <!-- ===== SUCCESS ===== -->\n  <div class=\"cq-done\" id=\"cqDone\">\n    <div class=\"cq-done-mark\">\n      <svg viewBox=\"0 0 48 48\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n        <circle cx=\"24\" cy=\"24\" r=\"21\" opacity=\".35\"/><path d=\"M15 24.5l6.5 6.5L34 18\"/>\n      </svg>\n    </div>\n    <h2>Request received</h2>\n    <p>A charter specialist is pricing your itinerary now and will be in touch shortly with aircraft options.</p>\n    <p class=\"cq-ref\" id=\"cqRef\"></p>\n    <pre class=\"cq-debug\" id=\"cqDebug\" hidden></pre>\n  </div>\n</div>";
   var STYLE_ID = "charter-quote-css";
 
@@ -27,13 +27,10 @@
     var root = el.querySelector(".cq");
 
     var D = el.dataset || {};
-    if (D.bg)       root.style.setProperty("--bg", D.bg);
-    if (D.bgDeep)   root.style.setProperty("--bg-deep", D.bgDeep);
-    if (D.accent)   root.style.setProperty("--signal", D.accent);
-    if (D.font)     root.style.setProperty("--font-sans", D.font);
-    if (D.maxWidth) root.style.setProperty("--max", D.maxWidth);
-    if (D.radius)   root.style.setProperty("--panel-radius", D.radius);
-    if (D.blur)     root.style.setProperty("--blur", D.blur);
+    if (D.bg)     root.style.setProperty("--bg", D.bg);
+    if (D.bgDeep) root.style.setProperty("--bg-deep", D.bgDeep);
+    if (D.accent) root.style.setProperty("--signal", D.accent);
+    if (D.font)   root.style.setProperty("--font-sans", D.font);
 
     (function () {
 (function () {
@@ -48,11 +45,6 @@
     // Leave empty for preview mode: the payload is shown on screen
     // instead of sent, so you can check its shape before wiring it up.
     webhookUrl: D.webhook || "",
-
-    // Show the raw outcome of a submission on screen. Diagnostic only —
-    // set data-debug="true" on the mount div while working out why a
-    // submission is failing, and take it off before handing over.
-    debug: !!D.debug,
 
     // Native Webflow form bridge — an alternative to webhookUrl that
     // needs no third-party automation. Name a hidden Webflow form on
@@ -847,39 +839,9 @@
     }).join("\n");
   }
 
-  /* Webflow rejects over-long field values — a 774-character one was enough
-     to fail the whole submission. Everything written to the native form is
-     capped, so a chatty customer can't sink their own quote request. */
-  var WF_FIELD_MAX = 500;
-
-  /* Fields the widget fills only if the Designer form actually has them. */
-  var WF_OPTIONAL = { "Payload": 1 };
-
-  /* A machine-readable backstop, trimmed to what the named fields don't
-     already carry. Dropped entirely rather than risk a rejection. */
-  function compactJson(payload) {
-    var out = JSON.stringify({
-      ref: payload.reference,
-      at: payload.submittedAt,
-      type: payload.trip.type,
-      flex: payload.trip.datesFlexible,
-      legs: payload.trip.legs.map(function (l) {
-        return { n: l.sequence, from: l.fromIcao, to: l.toIcao, date: l.date, time: l.time };
-      }),
-      pax: payload.passengers,
-      aircraft: payload.aircraftPreference,
-      bags: payload.baggage,
-      pets: payload.pets,
-      catering: payload.cateringRequested,
-      ground: payload.groundTransportRequested,
-      contact: payload.contact
-    });
-    return out.length <= WF_FIELD_MAX ? out : "";
-  }
-
   function webflowFields(payload) {
     var c = payload.contact;
-    var fields = {
+    return {
       "Reference":        payload.reference,
       "Trip-Type":        payload.trip.type,
       "Itinerary":        itineraryText(payload),
@@ -896,11 +858,9 @@
       "Booking-For":      c.bookingFor,
       "SMS-Consent":      c.smsConsent ? "Yes" : "No",
       "Notes":            payload.notes,
-      "Page-URL":         payload.source.pageUrl
+      "Page-URL":         payload.source.pageUrl,
+      "Payload":          JSON.stringify(payload)
     };
-    var json = compactJson(payload);
-    if (json) fields["Payload"] = json;
-    return fields;
   }
 
   /* Webflow reveals these by setting an inline display, which we can read
@@ -911,365 +871,45 @@
     return node.offsetParent !== null;
   }
 
-  /* Designer fields aren't always plain text inputs. A select whose options
-     don't include our value silently keeps "", and a checkbox ignores .value
-     outright — both then fail validation on a form nobody can see. */
-  function setWebflowField(field, value) {
-    var type = (field.type || "").toLowerCase();
-
-    if (type === "checkbox") { field.checked = /^(yes|true|1)$/i.test(value); return; }
-
-    if (field.tagName === "SELECT") {
-      var found = false, i;
-      for (i = 0; i < field.options.length; i++) {
-        if (field.options[i].value === value) { found = true; break; }
-      }
-      if (!found) {
-        var opt = document.createElement("option");
-        opt.value = value;
-        opt.text = value;
-        field.appendChild(opt);
-      }
-      field.value = value;
-      return;
-    }
-
-    field.value = value;
-  }
-
-  /* Webflow's success and error divs are a guess at what happened. The
-     request itself knows. This observes Webflow's own XHR — it never alters
-     it — and puts the originals back the moment the submission resolves. */
-  function watchWebflowRequest(onResult, onStart) {
-    var XHR = window.XMLHttpRequest;
-    if (!XHR || !XHR.prototype || !XHR.prototype.send) return function () {};
-
-    var openOrig = XHR.prototype.open;
-    var sendOrig = XHR.prototype.send;
-    var spent = false;
-
-    function restore() {
-      XHR.prototype.open = openOrig;
-      XHR.prototype.send = sendOrig;
-    }
-
-    XHR.prototype.open = function (method, url) {
-      try { this.__cqUrl = String(url || ""); } catch (e) {}
-      return openOrig.apply(this, arguments);
-    };
-
-    XHR.prototype.send = function () {
-      var xhr = this;
-      if (/\/api\/v\d+\/form/i.test(xhr.__cqUrl || "")) {
-        if (onStart) onStart();
-        xhr.addEventListener("loadend", function () {
-          if (spent) return;
-          spent = true;
-          restore();
-          onResult(xhr.status, (xhr.responseText || "").slice(0, 400));
-        });
-      }
-      return sendOrig.apply(this, arguments);
-    };
-
-    return function () { if (!spent) { spent = true; restore(); } };
-  }
-
-  /* Webflow guards forms with Cloudflare Turnstile, and answers 422 when the
-     submission carries no token.
-
-     Waiting for a token *before* submitting looks like the fix and is not:
-     measured on the live site, Webflow doesn't render Turnstile on page load
-     at all. There is no widget and no token 90 seconds in — it renders the
-     challenge in response to a submit. So a pre-submit wait can only ever run
-     out the clock on a token that nothing has asked for yet, which is exactly
-     what made a failed submission take twice as long as it needed to.
-
-     The order that works is the other way round: submit, let that provoke
-     Webflow into running its check, and if the answer is 422, wait for the
-     token that now exists and submit again. */
-  var SPAM_TOKEN_WAIT = 8000;
-
-  /* Three tries: the first provokes the spam check, the second carries its
-     token, and the third covers a token that arrived a moment too late. */
-  var MAX_ATTEMPTS = 3;
-
-  /* How long one attempt may sit with no answer at all. */
-  var ATTEMPT_TIMEOUT = 12000;
-
-  /* And a ceiling on the whole thing, so the button can never sit on
-     "Sending your request…" forever if an attempt neither answers nor times
-     out — which is precisely how it got stuck once already.
-
-     Neither deadline runs while a request is genuinely in flight. Webflow's
-     form endpoint was measured taking 63 seconds to answer a single
-     submission; giving up at 45s meant telling the customer it "took too
-     long" and then throwing away the real answer when it arrived. Waiting is
-     right as long as something is actually outstanding — SUBMIT_CEILING is
-     there for when it never lands at all. */
-  var SUBMIT_DEADLINE = 45000;
-  var SUBMIT_CEILING  = 120000;
-
-  /* Every wait here is measured against the clock rather than by counting
-     ticks. A background tab clamps setInterval to roughly once a second, so
-     `waited += 150` turned an 8-second wait into nearly a minute for anyone
-     who switched tabs mid-form — and the 12-second give-up with it. */
-  function since(t0) { return Date.now() - t0; }
-
-  function spamToken() {
-    var el = document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i], input[name*="captcha" i]');
-    if (el && el.value) return el.value;
-    try {
-      if (window.turnstile && typeof window.turnstile.getResponse === "function") {
-        return window.turnstile.getResponse() || "";
-      }
-    } catch (e) {}
-    return "";
-  }
-
-  function spamCheckPresent() {
-    return !!(window.turnstile || window.grecaptcha ||
-      document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i]'));
-  }
-
-  /* Only ever called after a 422 — never before the first attempt. Don't call
-     turnstile.execute() to hurry it along either: Cloudflare's widget is meant
-     to be visible, and executing it renders the challenge, which on a bridged
-     form means Webflow's plumbing appears on the page. */
-  function whenSpamTokenReady(cb) {
-    if (!spamCheckPresent() || spamToken()) { cb(); return; }
-    var t0 = Date.now();
-    var tick = setInterval(function () {
-      if (spamToken()) { clearInterval(tick); cb(); return; }
-      if (since(t0) >= SPAM_TOKEN_WAIT) {
-        clearInterval(tick);
-        if (window.console && console.warn) {
-          console.warn("[charter-quote] The page's spam check still produced no token " +
-            (SPAM_TOKEN_WAIT / 1000) + "s after Webflow rejected the submission. " +
-            "Either the check isn't running for this form, or the rejection wasn't " +
-            "about spam at all — check the site's form submission limit in Webflow's " +
-            "site settings, and try turning spam protection off for this form.");
-        }
-        cb();
-      }
-    }, 150);
-  }
-
-  /* We drive this form, so nobody should ever see it — not the fields, not
-     Webflow's own "thank you", not the spam-check widget.
-
-     It has to stay *rendered*, though. Cloudflare Turnstile won't run inside
-     a display:none subtree, so a form hidden that way never receives a token
-     and Webflow answers 422 to every attempt — no matter how long we wait.
-     Parking it off-screen keeps it invisible and still lets the check work.
-
-     The block moves to <body> first, so nothing done to its original
-     container in the Designer — display:none, overflow:hidden, a collapsed
-     section — can hide or clip it again. Webflow binds its submit handler to
-     the form element itself, so relocating the block doesn't disturb it. */
-  var WF_PARKED = "__cqParked";
-
-  var WF_PARK_STYLE = {
-    position:   "absolute",
-    left:       "-99999px",
-    top:        "0",
-    width:      "400px",   /* Turnstile declines to render in a cramped box */
-    height:     "300px",
-    overflow:   "visible",
-    display:    "block",
-    visibility: "visible",
-    opacity:    "1",
-    margin:     "0"
-  };
-
-  function parkWebflowPlumbing(form) {
-    var node = form, hops = 0;
-    while (node && hops < 4) {
-      if (node.className && String(node.className).indexOf("w-form") !== -1) break;
-      node = node.parentNode;
-      hops++;
-    }
-    var block = node && node.style ? node : form;
-    if (block[WF_PARKED]) return block;
-    block[WF_PARKED] = true;
-
-    if (document.body && block.parentNode !== document.body) document.body.appendChild(block);
-
-    for (var prop in WF_PARK_STYLE) {
-      if (!Object.prototype.hasOwnProperty.call(WF_PARK_STYLE, prop)) continue;
-      block.style.setProperty(prop, WF_PARK_STYLE[prop], "important");
-    }
-
-    /* Off-screen but rendered means it's still in the tab order, and nobody
-       should be able to tab into a form they can't see. */
-    var focusable = block.querySelectorAll("input, select, textarea, button, a[href]");
-    for (var i = 0; i < focusable.length; i++) focusable[i].setAttribute("tabindex", "-1");
-
-    return block;
-  }
-
-  /* Do it at mount, not at submit. Waiting leaves a window in which the block
-     can surface on the page, and the spam check needs the whole time between
-     page load and submit to produce its token. */
-  if (CONFIG.webflowForm) {
-    var bridgedForm = findWebflowForm(CONFIG.webflowForm);
-    if (bridgedForm) parkWebflowPlumbing(bridgedForm);
-  }
-
   function submitViaWebflow(payload, onFail) {
     var form = findWebflowForm(CONFIG.webflowForm);
     if (!form) { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
-
-    parkWebflowPlumbing(form);
 
     var values = webflowFields(payload);
     var missing = [];
     for (var key in values) {
       if (!Object.prototype.hasOwnProperty.call(values, key)) continue;
       var field = form.querySelector('[name="' + key + '"]');
-      if (!field) { if (!WF_OPTIONAL[key]) missing.push(key); continue; }
-      var value = values[key];
-      if (value.length > WF_FIELD_MAX) {
-        value = value.slice(0, WF_FIELD_MAX - 4) + " […]";
-        if (window.console && console.warn) {
-          console.warn("[charter-quote] " + key + " was truncated to " + WF_FIELD_MAX + " characters for Webflow.");
-        }
-      }
-      /* Constraints on a hidden form can only ever fail invisibly — the
-         browser refuses to submit and can't focus the field to say why.
-         The widget has already validated everything the customer typed. */
-      if (field.required) field.required = false;
-      if (field.getAttribute("pattern")) field.removeAttribute("pattern");
-
-      setWebflowField(field, value);
+      if (!field) { missing.push(key); continue; }
+      field.value = values[key];
     }
     if (missing.length && window.console && console.warn) {
       console.warn("[charter-quote] Webflow form has no field named: " + missing.join(", "));
-    }
-
-    /* If it still won't validate, say which field and why, rather than
-       letting the browser drop the submission without a word. */
-    if (typeof form.checkValidity === "function" && !form.checkValidity()) {
-      var bad = [], all = form.querySelectorAll("[name]"), n;
-      for (n = 0; n < all.length; n++) {
-        if (all[n].willValidate && !all[n].checkValidity()) bad.push(all[n].name || all[n].tagName);
-      }
-      if (window.console && console.warn) {
-        console.warn("[charter-quote] The Webflow form won't validate, so the browser will refuse to send it. Offending fields: " + bad.join(", "));
-      }
     }
 
     var wrap = form.parentNode;
     var done = wrap ? wrap.querySelector(".w-form-done") : null;
     var fail = wrap ? wrap.querySelector(".w-form-fail") : null;
 
-    /* The Designer publishes whichever form state was left showing, so either
-       of these can already be visible before anything is submitted. */
-    if ((wfShown(done) || wfShown(fail)) && window.console && console.warn) {
-      console.warn("[charter-quote] Webflow's " + (wfShown(done) ? "success" : "error") +
-        " message is already visible before submitting. Set the form back to its normal state in the Designer — until then the widget can't reliably tell whether a submission worked.");
-    }
+    var btn = form.querySelector('input[type="submit"], button[type="submit"]');
+    if (btn) btn.click();
+    else if (window.jQuery) window.jQuery(form).trigger("submit");
+    else { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
 
-    var attempts = 0;
-    var startedAt = Date.now();
-    var abandoned = false;
-    var pending = 0;          /* form requests currently outstanding */
-
-    /* The last line of defence. Whatever else goes wrong, the customer gets
-       an answer rather than a button that spins until they give up — but it
-       holds off while Webflow still owes us a response. */
-    var deadline = setInterval(function () {
-      var waited = since(startedAt);
-      if (waited < SUBMIT_DEADLINE) return;
-      if (pending > 0 && waited < SUBMIT_CEILING) return;
-      clearInterval(deadline);
-      abandoned = true;
-      if (window.console && console.warn) {
-        console.warn("[charter-quote] Gave up after " + Math.round(waited / 1000) +
-          "s across " + attempts + " attempt(s)" +
-          (pending > 0 ? " — a request to Webflow never came back." : " — no attempt ever settled."));
+    var waited = 0;
+    var poll = setInterval(function () {
+      waited += 200;
+      if (wfShown(done)) { clearInterval(poll); finish(payload, false); return; }
+      if (wfShown(fail)) {
+        clearInterval(poll);
+        onFail("That didn't send. Please try again, or call us and we'll take the details over the phone.");
+        return;
       }
-      onFail("That took too long to send. Please try again, or call us and we'll take the details over the phone.");
-    }, 500);
-
-    function attempt() {
-      if (abandoned) return;
-      attempts++;
-
-      /* Re-read each time: a rejected attempt leaves Webflow's error message
-         showing, and on a retry that's old news rather than a fresh verdict. */
-      var doneWas = wfShown(done);
-      var failWas = wfShown(fail);
-      var settled = false, poll = null, stopWatching = null, sawRequest = false, inFlight = false;
-
-      function settle(ok, message, detail) {
-        if (settled || abandoned) return;
-        settled = true;
-        if (poll) clearInterval(poll);
-        if (stopWatching) stopWatching();
-        if (ok) { clearInterval(deadline); finish(payload, false); return; }
-
-        /* 422 is Webflow's answer when the submission carried no spam-check
-           token. The first attempt is what makes Webflow render the challenge
-           in the first place, so the token generally exists by now — wait for
-           it and go again. */
-        if (detail && detail.indexOf("HTTP 422") !== -1 && attempts < MAX_ATTEMPTS) {
-          if (window.console && console.warn) {
-            console.warn("[charter-quote] " + detail + (spamToken()
-              ? " — a spam-check token is now available, trying again."
-              : " — waiting for the spam check that this attempt should have started, then trying again."));
-          }
-          whenSpamTokenReady(attempt);
-          return;
-        }
-
-        clearInterval(deadline);
-        if (detail && window.console && console.warn) {
-          console.warn("[charter-quote] " + detail + " (attempt " + attempts + " of " +
-            MAX_ATTEMPTS + ", " + Math.round(since(startedAt) / 1000) + "s in)");
-        }
-        onFail(CONFIG.debug && detail ? detail : message);
+      if (waited >= 12000) {
+        clearInterval(poll);
+        onFail("That took too long to send. Please try again, or call us and we'll take the details over the phone.");
       }
-
-      stopWatching = watchWebflowRequest(function (status, body) {
-        sawRequest = true;
-        if (pending > 0) pending--;
-        if (status >= 200 && status < 300) { settle(true); return; }
-        settle(false,
-          status === 429
-            ? "We're getting a lot of requests right now. Please try again in a moment, or call us and we'll take the details over the phone."
-            : "That didn't send. Please try again, or call us and we'll take the details over the phone.",
-          "Webflow answered HTTP " + status + (body ? " — " + body : " with an empty body"));
-      }, function () { pending++; inFlight = true; });
-
-      var btn = form.querySelector('input[type="submit"], button[type="submit"]');
-      if (btn) btn.click();
-      else if (window.jQuery) window.jQuery(form).trigger("submit");
-      else { settle(false, "This form isn't connected yet. Please call us and we'll take the details over the phone.", "The Webflow form has no submit button."); return; }
-
-      /* Fallback for the case where Webflow stops using XHR. The request, when
-         we can see it, always wins — these divs only decide if none appeared. */
-      var t0 = Date.now();
-      poll = setInterval(function () {
-        /* A request that's still running isn't a request that failed. */
-        if (sawRequest || inFlight) return;
-        if (!doneWas && wfShown(done)) { settle(true); return; }
-        if (!failWas && wfShown(fail)) {
-          settle(false, "That didn't send. Please try again, or call us and we'll take the details over the phone.",
-            "Webflow showed its error message, but no form request was seen leaving the page.");
-          return;
-        }
-        if (since(t0) >= ATTEMPT_TIMEOUT) {
-          settle(false, "That took too long to send. Please try again, or call us and we'll take the details over the phone.",
-            "No response after " + (ATTEMPT_TIMEOUT / 1000) + "s. No form request was seen leaving the page — " +
-            "the browser most likely refused to send it.");
-        }
-      }, 200);
-    }
-
-    /* Straight in. Webflow renders its spam check in response to a submit, so
-       there is nothing to wait for until the first attempt has been made. */
-    attempt();
+    }, 200);
   }
 
   formEl.addEventListener("submit", function (e) {

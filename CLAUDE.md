@@ -76,44 +76,13 @@ Submission has three modes, checked in this order:
    `name`, and clicks its submit button so Webflow's own jQuery handler picks it
    up. Entries land in Webflow's Form Submissions panel — no webhook, no Make.
    Field names are fixed in `webflowFields()`; `trip.legs` is flattened to text
-   by `itineraryText()` since a native form can't hold an array.
+   by `itineraryText()` since a native form can't hold an array, and the whole
+   JSON payload also goes into a `Payload` field as a backstop.
 
-   **Webflow rejects the entire submission if one field value is too long**,
-   with only its generic error to show for it — a 774-character value did it in
-   production. Everything written is therefore capped at `WF_FIELD_MAX` (500)
-   and marked with ` […]`. The `Payload` field is listed in `WF_OPTIONAL`: it
-   carries a trimmed JSON copy from `compactJson()`, is dropped rather than
-   truncated when it won't fit, and produces no warning when the Designer form
-   omits it. Don't reintroduce the full payload here.
-
-   The outcome is decided by the **HTTP status** of Webflow's own form request,
-   which `watchWebflowRequest()` observes without altering. `.w-form-done` and
-   `.w-form-fail` are only a fallback for the case where Webflow stops using
-   XHR; detection there reads the **inline** `display` Webflow sets, and
-   baselines whichever state was already visible when the page was published.
-
-   **The Webflow form must stay rendered.** `parkWebflowPlumbing()` moves the
-   whole `.w-form` block to `<body>` and parks it off-screen with `!important`,
-   rather than hiding it. Turnstile will not run inside a `display:none`
-   subtree. Don't go back to `display:none`, and don't call
-   `turnstile.execute()` to hurry it along — executing it renders the
-   challenge, which is exactly what must stay unseen.
-
-   **Submit first; don't wait for a spam-check token.** Measured on the live
-   site with the browser: Webflow does not render Turnstile on page load at
-   all — there is no widget and no token 90 seconds in. It renders the
-   challenge *in response to a submit*. So a pre-submit wait can only run out
-   the clock on a token nothing has asked for yet. `attempt()` fires straight
-   away; `whenSpamTokenReady()` is only used **after** a 422, to wait for the
-   token that the rejected attempt provoked. Reversing this is what made
-   v1.5.x take 8s per attempt and still fail. `MAX_ATTEMPTS` is 3.
-
-   **Measure waits with the clock, not by counting ticks.** Every timeout uses
-   `since(t0)` against `Date.now()`. A background tab clamps `setInterval` to
-   ~1/second, so the old `waited += 150` turned an 8s wait into nearly a
-   minute for anyone who switched tabs mid-form. `SUBMIT_DEADLINE` (45s) is a
-   backstop so the button can never spin forever if an attempt neither answers
-   nor times out.
+   It waits for Webflow's `.w-form-done` before calling `finish()`, so a
+   rejected submission surfaces an error instead of a false success. Detection
+   reads the **inline** `display` Webflow sets, not `offsetParent` — the form
+   block is hidden on the page, so `offsetParent` is null even on success.
 
 2. **Webhook** (`CONFIG.webhookUrl`). POSTs the JSON payload.
 3. **Preview mode** (neither set). Shows the payload on screen instead of
@@ -124,11 +93,6 @@ Submission has three modes, checked in this order:
 `build-embed.js` splits the HTML into CSS, markup, and JS, then applies targeted
 transforms so the widget can live inside someone else's page:
 
-- **Panel surface.** The build injects its own `.cq { background: var(--bg) }`
-  in place of the `html, body` rule. The source's `.cq` panel rule comes later
-  and overrides it with `var(--panel)` — the frosted translucent surface. If
-  you ever reorder these, the panel silently goes back to solid blue; the test
-  asserts the frosted declaration still wins.
 - **CSS scoping.** `:root` becomes `.cq`; the `* { box-sizing }` reset,
   `:focus-visible`, and the reduced-motion block get namespaced under `.cq`; the
   `html, body` rule becomes a `.cq` panel rule. Without this the widget's reset
@@ -273,9 +237,43 @@ Gavin does this in Make's browser UI.
 | Build throws `no-op replacement -> X` | A source edit broke that transform's pattern. Fix the pattern in `build-embed.js`. |
 | Form submits but nothing arrives in Make | Preview mode — `data-webhook` is missing or empty on the mount div. |
 | Webflow bridge: submit hangs, then times out | A field in the hidden Webflow form is marked **required**, or reCAPTCHA is on it. Browser validation blocks a hidden form and can't show the error. |
-| Webflow bridge: "That didn't send" every time | Webflow returned an error. Set `data-debug="true"` on the mount div to put the status on screen. **HTTP 422 `"Could not process the form submission. Please contact the site owner"` almost always means the site plan's form submission limit is used up** — the free Starter plan allows 50 lifetime submissions and never resets. Confirmed on this site in Aug 2026 after ~50 test submissions: the endpoint took 63s to answer and returned 422 with no spam-check widget involved at all. Check Site Settings → Forms first. Only then look at spam protection or an over-long field value (`WF_FIELD_MAX`). |
 | Webflow bridge: some fields arrive blank | Designer field name doesn't match `webflowFields()`. The console logs exactly which names it couldn't find. |
 | Two widgets on one page conflict | Not supported. The markup uses ids. One instance per page. |
+| Webflow bridge: every submission fails, whatever the widget does | **Check the site's form submission count before touching this code.** See below. |
+
+---
+
+## Known issue: Webflow returns 422 on every submission
+
+Measured on the live site (tmjetg.webflow.io) in August 2026, with the browser
+driving a real submission:
+
+```
+request to https://webflow.com/api/v1/form/<siteId>
+took 62.9 seconds, answered:
+  HTTP 422 — "Could not process the form submission. Please contact the site owner"
+```
+
+No Cloudflare Turnstile widget was rendered at any point, before or after the
+submit, so the spam check was not involved.
+
+**This is a server-side refusal, not a widget fault.** Webflow answers 422 with
+that message once a site's form submission limit is used up. The free Starter
+plan allows **50 lifetime submissions and never resets**. Days of testing will
+exhaust it, and the failure looks exactly like a broken integration.
+
+Versions v1.2.0 through v1.6.2 were successive attempts to fix this from the
+client side — DOM state vs HTTP status, Designer field constraints, Turnstile
+token timing, off-screen form rendering. None of it was the cause. That work is
+still in the git history if any of it is wanted again; it was reverted here to
+get back to a known-good baseline.
+
+Before changing the bridge again:
+
+1. Check **Site Settings → Forms** for the submission count and site plan.
+2. If the cap is the problem, either upgrade the site plan, or switch to
+   `data-webhook` (Option B) — a webhook bypasses Webflow's form system
+   entirely and has no such cap.
 
 ---
 

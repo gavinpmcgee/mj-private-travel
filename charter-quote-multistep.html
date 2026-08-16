@@ -7,15 +7,8 @@
      Everything visual derives from this block.
      ============================================================ */
   :root {
-    --bg:        #265ABE;   /* brand blue — the tint, and the solid discs on the track */
-    --bg-deep:   #1B4593;   /* dropdowns and recessed surfaces — stays opaque, for legibility */
-
-    /* The frosted panel. Declared twice on purpose: browsers without
-       color-mix() keep the literal rgba and still get a sane panel. */
-    --panel:     rgba(38, 90, 190, .58);
-    --panel:     color-mix(in srgb, var(--bg) 58%, transparent);
-    --blur:      18px;
-
+    --bg:        #265ABE;   /* brand blue — the widget surface */
+    --bg-deep:   #1B4593;   /* recessed panels, pressed states */
     --on-bg:     #FFFFFF;   /* primary text */
     --on-bg-mid: rgba(255,255,255,.85);  /* labels, helper copy */
     --on-bg-low: rgba(255,255,255,.50);  /* placeholders */
@@ -29,25 +22,16 @@
     --font-sans: "Gilroy", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     --font-code: var(--font-sans);   /* point at a mono face if you prefer */
 
-    --radius: 5px;          /* fields, buttons, small surfaces */
-    --panel-radius: 12px;   /* the panel's own corners — set data-radius to change */
-    --max: 100%;            /* full width — set data-max-width to cap it */
+    --radius: 5px;
+    --max: 700px;
   }
 
   * { box-sizing: border-box; }
 
-  /* Standalone preview only — the build strips this rule entirely. The
-     gradient exists so the frosted panel has something to frost while you
-     iterate; on Webflow it's the page behind the embed that shows through. */
   html, body {
     margin: 0;
-    padding: 40px 24px;
-    background:
-      radial-gradient(900px 500px at 15% 0%, rgba(255,182,39,.30), transparent 60%),
-      radial-gradient(700px 500px at 95% 100%, rgba(255,255,255,.20), transparent 55%),
-      linear-gradient(135deg, #0C2555 0%, var(--bg) 55%, var(--bg-deep) 100%);
-    background-attachment: fixed;
-    min-height: 100vh;
+    padding: 0;
+    background: var(--bg);
     font-family: var(--font-sans);
     color: var(--on-bg);
     -webkit-font-smoothing: antialiased;
@@ -59,20 +43,6 @@
     padding: 30px 22px 34px;
     font-size: 15px;
     line-height: 1.5;
-
-    /* Frosted glass. Height stays content-driven — never set one here, the
-       panel has to grow as legs are added and shrink on the success screen. */
-    background: var(--panel);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
-    backdrop-filter: blur(var(--blur)) saturate(150%);
-    border: 1px solid var(--line-soft);
-    border-radius: var(--panel-radius);
-  }
-
-  /* No backdrop-filter means nothing gets frosted and the panel would just
-     read as washed out. Fall back to the solid brand blue instead. */
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .cq { background: var(--bg); }
   }
 
   /* ============================================================
@@ -600,11 +570,6 @@
     // Leave empty for preview mode: the payload is shown on screen
     // instead of sent, so you can check its shape before wiring it up.
     webhookUrl: "",
-
-    // Show the raw outcome of a submission on screen. Diagnostic only —
-    // set data-debug="true" on the mount div while working out why a
-    // submission is failing, and take it off before handing over.
-    debug: false,
 
     // Native Webflow form bridge — an alternative to webhookUrl that
     // needs no third-party automation. Name a hidden Webflow form on
@@ -1394,39 +1359,9 @@
     }).join("\n");
   }
 
-  /* Webflow rejects over-long field values — a 774-character one was enough
-     to fail the whole submission. Everything written to the native form is
-     capped, so a chatty customer can't sink their own quote request. */
-  var WF_FIELD_MAX = 500;
-
-  /* Fields the widget fills only if the Designer form actually has them. */
-  var WF_OPTIONAL = { "Payload": 1 };
-
-  /* A machine-readable backstop, trimmed to what the named fields don't
-     already carry. Dropped entirely rather than risk a rejection. */
-  function compactJson(payload) {
-    var out = JSON.stringify({
-      ref: payload.reference,
-      at: payload.submittedAt,
-      type: payload.trip.type,
-      flex: payload.trip.datesFlexible,
-      legs: payload.trip.legs.map(function (l) {
-        return { n: l.sequence, from: l.fromIcao, to: l.toIcao, date: l.date, time: l.time };
-      }),
-      pax: payload.passengers,
-      aircraft: payload.aircraftPreference,
-      bags: payload.baggage,
-      pets: payload.pets,
-      catering: payload.cateringRequested,
-      ground: payload.groundTransportRequested,
-      contact: payload.contact
-    });
-    return out.length <= WF_FIELD_MAX ? out : "";
-  }
-
   function webflowFields(payload) {
     var c = payload.contact;
-    var fields = {
+    return {
       "Reference":        payload.reference,
       "Trip-Type":        payload.trip.type,
       "Itinerary":        itineraryText(payload),
@@ -1443,11 +1378,9 @@
       "Booking-For":      c.bookingFor,
       "SMS-Consent":      c.smsConsent ? "Yes" : "No",
       "Notes":            payload.notes,
-      "Page-URL":         payload.source.pageUrl
+      "Page-URL":         payload.source.pageUrl,
+      "Payload":          JSON.stringify(payload)
     };
-    var json = compactJson(payload);
-    if (json) fields["Payload"] = json;
-    return fields;
   }
 
   /* Webflow reveals these by setting an inline display, which we can read
@@ -1458,365 +1391,45 @@
     return node.offsetParent !== null;
   }
 
-  /* Designer fields aren't always plain text inputs. A select whose options
-     don't include our value silently keeps "", and a checkbox ignores .value
-     outright — both then fail validation on a form nobody can see. */
-  function setWebflowField(field, value) {
-    var type = (field.type || "").toLowerCase();
-
-    if (type === "checkbox") { field.checked = /^(yes|true|1)$/i.test(value); return; }
-
-    if (field.tagName === "SELECT") {
-      var found = false, i;
-      for (i = 0; i < field.options.length; i++) {
-        if (field.options[i].value === value) { found = true; break; }
-      }
-      if (!found) {
-        var opt = document.createElement("option");
-        opt.value = value;
-        opt.text = value;
-        field.appendChild(opt);
-      }
-      field.value = value;
-      return;
-    }
-
-    field.value = value;
-  }
-
-  /* Webflow's success and error divs are a guess at what happened. The
-     request itself knows. This observes Webflow's own XHR — it never alters
-     it — and puts the originals back the moment the submission resolves. */
-  function watchWebflowRequest(onResult, onStart) {
-    var XHR = window.XMLHttpRequest;
-    if (!XHR || !XHR.prototype || !XHR.prototype.send) return function () {};
-
-    var openOrig = XHR.prototype.open;
-    var sendOrig = XHR.prototype.send;
-    var spent = false;
-
-    function restore() {
-      XHR.prototype.open = openOrig;
-      XHR.prototype.send = sendOrig;
-    }
-
-    XHR.prototype.open = function (method, url) {
-      try { this.__cqUrl = String(url || ""); } catch (e) {}
-      return openOrig.apply(this, arguments);
-    };
-
-    XHR.prototype.send = function () {
-      var xhr = this;
-      if (/\/api\/v\d+\/form/i.test(xhr.__cqUrl || "")) {
-        if (onStart) onStart();
-        xhr.addEventListener("loadend", function () {
-          if (spent) return;
-          spent = true;
-          restore();
-          onResult(xhr.status, (xhr.responseText || "").slice(0, 400));
-        });
-      }
-      return sendOrig.apply(this, arguments);
-    };
-
-    return function () { if (!spent) { spent = true; restore(); } };
-  }
-
-  /* Webflow guards forms with Cloudflare Turnstile, and answers 422 when the
-     submission carries no token.
-
-     Waiting for a token *before* submitting looks like the fix and is not:
-     measured on the live site, Webflow doesn't render Turnstile on page load
-     at all. There is no widget and no token 90 seconds in — it renders the
-     challenge in response to a submit. So a pre-submit wait can only ever run
-     out the clock on a token that nothing has asked for yet, which is exactly
-     what made a failed submission take twice as long as it needed to.
-
-     The order that works is the other way round: submit, let that provoke
-     Webflow into running its check, and if the answer is 422, wait for the
-     token that now exists and submit again. */
-  var SPAM_TOKEN_WAIT = 8000;
-
-  /* Three tries: the first provokes the spam check, the second carries its
-     token, and the third covers a token that arrived a moment too late. */
-  var MAX_ATTEMPTS = 3;
-
-  /* How long one attempt may sit with no answer at all. */
-  var ATTEMPT_TIMEOUT = 12000;
-
-  /* And a ceiling on the whole thing, so the button can never sit on
-     "Sending your request…" forever if an attempt neither answers nor times
-     out — which is precisely how it got stuck once already.
-
-     Neither deadline runs while a request is genuinely in flight. Webflow's
-     form endpoint was measured taking 63 seconds to answer a single
-     submission; giving up at 45s meant telling the customer it "took too
-     long" and then throwing away the real answer when it arrived. Waiting is
-     right as long as something is actually outstanding — SUBMIT_CEILING is
-     there for when it never lands at all. */
-  var SUBMIT_DEADLINE = 45000;
-  var SUBMIT_CEILING  = 120000;
-
-  /* Every wait here is measured against the clock rather than by counting
-     ticks. A background tab clamps setInterval to roughly once a second, so
-     `waited += 150` turned an 8-second wait into nearly a minute for anyone
-     who switched tabs mid-form — and the 12-second give-up with it. */
-  function since(t0) { return Date.now() - t0; }
-
-  function spamToken() {
-    var el = document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i], input[name*="captcha" i]');
-    if (el && el.value) return el.value;
-    try {
-      if (window.turnstile && typeof window.turnstile.getResponse === "function") {
-        return window.turnstile.getResponse() || "";
-      }
-    } catch (e) {}
-    return "";
-  }
-
-  function spamCheckPresent() {
-    return !!(window.turnstile || window.grecaptcha ||
-      document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i]'));
-  }
-
-  /* Only ever called after a 422 — never before the first attempt. Don't call
-     turnstile.execute() to hurry it along either: Cloudflare's widget is meant
-     to be visible, and executing it renders the challenge, which on a bridged
-     form means Webflow's plumbing appears on the page. */
-  function whenSpamTokenReady(cb) {
-    if (!spamCheckPresent() || spamToken()) { cb(); return; }
-    var t0 = Date.now();
-    var tick = setInterval(function () {
-      if (spamToken()) { clearInterval(tick); cb(); return; }
-      if (since(t0) >= SPAM_TOKEN_WAIT) {
-        clearInterval(tick);
-        if (window.console && console.warn) {
-          console.warn("[charter-quote] The page's spam check still produced no token " +
-            (SPAM_TOKEN_WAIT / 1000) + "s after Webflow rejected the submission. " +
-            "Either the check isn't running for this form, or the rejection wasn't " +
-            "about spam at all — check the site's form submission limit in Webflow's " +
-            "site settings, and try turning spam protection off for this form.");
-        }
-        cb();
-      }
-    }, 150);
-  }
-
-  /* We drive this form, so nobody should ever see it — not the fields, not
-     Webflow's own "thank you", not the spam-check widget.
-
-     It has to stay *rendered*, though. Cloudflare Turnstile won't run inside
-     a display:none subtree, so a form hidden that way never receives a token
-     and Webflow answers 422 to every attempt — no matter how long we wait.
-     Parking it off-screen keeps it invisible and still lets the check work.
-
-     The block moves to <body> first, so nothing done to its original
-     container in the Designer — display:none, overflow:hidden, a collapsed
-     section — can hide or clip it again. Webflow binds its submit handler to
-     the form element itself, so relocating the block doesn't disturb it. */
-  var WF_PARKED = "__cqParked";
-
-  var WF_PARK_STYLE = {
-    position:   "absolute",
-    left:       "-99999px",
-    top:        "0",
-    width:      "400px",   /* Turnstile declines to render in a cramped box */
-    height:     "300px",
-    overflow:   "visible",
-    display:    "block",
-    visibility: "visible",
-    opacity:    "1",
-    margin:     "0"
-  };
-
-  function parkWebflowPlumbing(form) {
-    var node = form, hops = 0;
-    while (node && hops < 4) {
-      if (node.className && String(node.className).indexOf("w-form") !== -1) break;
-      node = node.parentNode;
-      hops++;
-    }
-    var block = node && node.style ? node : form;
-    if (block[WF_PARKED]) return block;
-    block[WF_PARKED] = true;
-
-    if (document.body && block.parentNode !== document.body) document.body.appendChild(block);
-
-    for (var prop in WF_PARK_STYLE) {
-      if (!Object.prototype.hasOwnProperty.call(WF_PARK_STYLE, prop)) continue;
-      block.style.setProperty(prop, WF_PARK_STYLE[prop], "important");
-    }
-
-    /* Off-screen but rendered means it's still in the tab order, and nobody
-       should be able to tab into a form they can't see. */
-    var focusable = block.querySelectorAll("input, select, textarea, button, a[href]");
-    for (var i = 0; i < focusable.length; i++) focusable[i].setAttribute("tabindex", "-1");
-
-    return block;
-  }
-
-  /* Do it at mount, not at submit. Waiting leaves a window in which the block
-     can surface on the page, and the spam check needs the whole time between
-     page load and submit to produce its token. */
-  if (CONFIG.webflowForm) {
-    var bridgedForm = findWebflowForm(CONFIG.webflowForm);
-    if (bridgedForm) parkWebflowPlumbing(bridgedForm);
-  }
-
   function submitViaWebflow(payload, onFail) {
     var form = findWebflowForm(CONFIG.webflowForm);
     if (!form) { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
-
-    parkWebflowPlumbing(form);
 
     var values = webflowFields(payload);
     var missing = [];
     for (var key in values) {
       if (!Object.prototype.hasOwnProperty.call(values, key)) continue;
       var field = form.querySelector('[name="' + key + '"]');
-      if (!field) { if (!WF_OPTIONAL[key]) missing.push(key); continue; }
-      var value = values[key];
-      if (value.length > WF_FIELD_MAX) {
-        value = value.slice(0, WF_FIELD_MAX - 4) + " […]";
-        if (window.console && console.warn) {
-          console.warn("[charter-quote] " + key + " was truncated to " + WF_FIELD_MAX + " characters for Webflow.");
-        }
-      }
-      /* Constraints on a hidden form can only ever fail invisibly — the
-         browser refuses to submit and can't focus the field to say why.
-         The widget has already validated everything the customer typed. */
-      if (field.required) field.required = false;
-      if (field.getAttribute("pattern")) field.removeAttribute("pattern");
-
-      setWebflowField(field, value);
+      if (!field) { missing.push(key); continue; }
+      field.value = values[key];
     }
     if (missing.length && window.console && console.warn) {
       console.warn("[charter-quote] Webflow form has no field named: " + missing.join(", "));
-    }
-
-    /* If it still won't validate, say which field and why, rather than
-       letting the browser drop the submission without a word. */
-    if (typeof form.checkValidity === "function" && !form.checkValidity()) {
-      var bad = [], all = form.querySelectorAll("[name]"), n;
-      for (n = 0; n < all.length; n++) {
-        if (all[n].willValidate && !all[n].checkValidity()) bad.push(all[n].name || all[n].tagName);
-      }
-      if (window.console && console.warn) {
-        console.warn("[charter-quote] The Webflow form won't validate, so the browser will refuse to send it. Offending fields: " + bad.join(", "));
-      }
     }
 
     var wrap = form.parentNode;
     var done = wrap ? wrap.querySelector(".w-form-done") : null;
     var fail = wrap ? wrap.querySelector(".w-form-fail") : null;
 
-    /* The Designer publishes whichever form state was left showing, so either
-       of these can already be visible before anything is submitted. */
-    if ((wfShown(done) || wfShown(fail)) && window.console && console.warn) {
-      console.warn("[charter-quote] Webflow's " + (wfShown(done) ? "success" : "error") +
-        " message is already visible before submitting. Set the form back to its normal state in the Designer — until then the widget can't reliably tell whether a submission worked.");
-    }
+    var btn = form.querySelector('input[type="submit"], button[type="submit"]');
+    if (btn) btn.click();
+    else if (window.jQuery) window.jQuery(form).trigger("submit");
+    else { onFail("This form isn't connected yet. Please call us and we'll take the details over the phone."); return; }
 
-    var attempts = 0;
-    var startedAt = Date.now();
-    var abandoned = false;
-    var pending = 0;          /* form requests currently outstanding */
-
-    /* The last line of defence. Whatever else goes wrong, the customer gets
-       an answer rather than a button that spins until they give up — but it
-       holds off while Webflow still owes us a response. */
-    var deadline = setInterval(function () {
-      var waited = since(startedAt);
-      if (waited < SUBMIT_DEADLINE) return;
-      if (pending > 0 && waited < SUBMIT_CEILING) return;
-      clearInterval(deadline);
-      abandoned = true;
-      if (window.console && console.warn) {
-        console.warn("[charter-quote] Gave up after " + Math.round(waited / 1000) +
-          "s across " + attempts + " attempt(s)" +
-          (pending > 0 ? " — a request to Webflow never came back." : " — no attempt ever settled."));
+    var waited = 0;
+    var poll = setInterval(function () {
+      waited += 200;
+      if (wfShown(done)) { clearInterval(poll); finish(payload, false); return; }
+      if (wfShown(fail)) {
+        clearInterval(poll);
+        onFail("That didn't send. Please try again, or call us and we'll take the details over the phone.");
+        return;
       }
-      onFail("That took too long to send. Please try again, or call us and we'll take the details over the phone.");
-    }, 500);
-
-    function attempt() {
-      if (abandoned) return;
-      attempts++;
-
-      /* Re-read each time: a rejected attempt leaves Webflow's error message
-         showing, and on a retry that's old news rather than a fresh verdict. */
-      var doneWas = wfShown(done);
-      var failWas = wfShown(fail);
-      var settled = false, poll = null, stopWatching = null, sawRequest = false, inFlight = false;
-
-      function settle(ok, message, detail) {
-        if (settled || abandoned) return;
-        settled = true;
-        if (poll) clearInterval(poll);
-        if (stopWatching) stopWatching();
-        if (ok) { clearInterval(deadline); finish(payload, false); return; }
-
-        /* 422 is Webflow's answer when the submission carried no spam-check
-           token. The first attempt is what makes Webflow render the challenge
-           in the first place, so the token generally exists by now — wait for
-           it and go again. */
-        if (detail && detail.indexOf("HTTP 422") !== -1 && attempts < MAX_ATTEMPTS) {
-          if (window.console && console.warn) {
-            console.warn("[charter-quote] " + detail + (spamToken()
-              ? " — a spam-check token is now available, trying again."
-              : " — waiting for the spam check that this attempt should have started, then trying again."));
-          }
-          whenSpamTokenReady(attempt);
-          return;
-        }
-
-        clearInterval(deadline);
-        if (detail && window.console && console.warn) {
-          console.warn("[charter-quote] " + detail + " (attempt " + attempts + " of " +
-            MAX_ATTEMPTS + ", " + Math.round(since(startedAt) / 1000) + "s in)");
-        }
-        onFail(CONFIG.debug && detail ? detail : message);
+      if (waited >= 12000) {
+        clearInterval(poll);
+        onFail("That took too long to send. Please try again, or call us and we'll take the details over the phone.");
       }
-
-      stopWatching = watchWebflowRequest(function (status, body) {
-        sawRequest = true;
-        if (pending > 0) pending--;
-        if (status >= 200 && status < 300) { settle(true); return; }
-        settle(false,
-          status === 429
-            ? "We're getting a lot of requests right now. Please try again in a moment, or call us and we'll take the details over the phone."
-            : "That didn't send. Please try again, or call us and we'll take the details over the phone.",
-          "Webflow answered HTTP " + status + (body ? " — " + body : " with an empty body"));
-      }, function () { pending++; inFlight = true; });
-
-      var btn = form.querySelector('input[type="submit"], button[type="submit"]');
-      if (btn) btn.click();
-      else if (window.jQuery) window.jQuery(form).trigger("submit");
-      else { settle(false, "This form isn't connected yet. Please call us and we'll take the details over the phone.", "The Webflow form has no submit button."); return; }
-
-      /* Fallback for the case where Webflow stops using XHR. The request, when
-         we can see it, always wins — these divs only decide if none appeared. */
-      var t0 = Date.now();
-      poll = setInterval(function () {
-        /* A request that's still running isn't a request that failed. */
-        if (sawRequest || inFlight) return;
-        if (!doneWas && wfShown(done)) { settle(true); return; }
-        if (!failWas && wfShown(fail)) {
-          settle(false, "That didn't send. Please try again, or call us and we'll take the details over the phone.",
-            "Webflow showed its error message, but no form request was seen leaving the page.");
-          return;
-        }
-        if (since(t0) >= ATTEMPT_TIMEOUT) {
-          settle(false, "That took too long to send. Please try again, or call us and we'll take the details over the phone.",
-            "No response after " + (ATTEMPT_TIMEOUT / 1000) + "s. No form request was seen leaving the page — " +
-            "the browser most likely refused to send it.");
-        }
-      }, 200);
-    }
-
-    /* Straight in. Webflow renders its spam check in response to a submit, so
-       there is nothing to wait for until the first attempt has been made. */
-    attempt();
+    }, 200);
   }
 
   formEl.addEventListener("submit", function (e) {

@@ -65,59 +65,33 @@ exactly**, because that's what the widget looks for:
 Reference   Trip-Type   Itinerary   Dates-Flexible   Passengers
 Aircraft    Baggage     Pets        Catering         Ground-Transport
 Name        Email       Phone       Booking-For      SMS-Consent
-Notes       Page-URL
+Notes       Page-URL    Payload
 ```
 
-There's one **optional** extra field, `Payload`, holding a compact JSON copy of
-the submission. Add it only if something downstream needs to parse the data —
-it's not needed for reading quotes in Webflow, and it's the field most likely
-to run into the length limit below.
-
-Then leave the Form Block **visible** in the Designer and point the widget at
-it:
+Then set the Form Block's display to **none** in the Designer, and point the
+widget at it:
 
 ```html
 <div id="charter-quote" data-webflow-form="Charter Quote"></div>
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.6.2/charter-quote.js" defer></script>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.1.0/charter-quote.js" defer></script>
 ```
 
-The widget takes the form off the page for you: on load it moves the whole Form
-Block to the end of `<body>` and parks it far off-screen, so nobody ever sees
-it. Then it fills the fields in and submits it, and decides success or failure
-from the status Webflow's own request comes back with.
+The widget fills the hidden form in and submits it for you. It waits for
+Webflow's own success confirmation before showing the success panel, so a
+rejected submission shows an error rather than a false "thank you".
 
-**Don't set the Form Block's display to none yourself.** Webflow protects forms
-with Cloudflare Turnstile, and Turnstile refuses to run inside a hidden
-element — so a hidden form never gets its spam-check token and Webflow rejects
-every submission with a 422. Off-screen works; hidden does not. If some parent
-section on the page is hidden, the widget's move to `<body>` gets the form out
-of it, but it's cleaner not to nest it in one.
+Three things to get right:
 
-Two more things to get right:
+- **Don't mark any field required.** The form is hidden, so a browser
+  validation error on it can't be seen or dismissed — the submit just dies.
+- **Don't add reCAPTCHA** to this form. It can't be solved from a hidden form.
+- **Make `Itinerary`, `Notes`, and `Payload` textareas**, not single-line
+  inputs. Multi-city trips put one leg per line in `Itinerary`, and `Payload`
+  holds the full JSON as a backstop.
 
-- **Make `Itinerary` and `Notes` textareas**, not single-line inputs.
-  Multi-city trips put one leg per line in `Itinerary`.
-- **Leave the form in its normal state** when you publish — not showing the
-  success or error message. Field-level `required` flags are harmless; the
-  widget strips them, having already validated everything the customer typed.
-
-### Webflow's field length limit
-
-Webflow rejects the whole submission if any single field value is too long —
-and it gives no useful reason, just its generic error. A 774-character value
-was enough to trigger it in testing.
-
-So the widget caps everything it writes at **500 characters**, adding ` […]` to
-anything it trims, and logs which field it trimmed to the browser console. A
-customer writing an essay in the notes box can no longer sink their own quote
-request.
-
-The `Payload` field follows the same rule: it's dropped rather than truncated,
-since half a JSON object is worth nothing. On long multi-city trips it will
-come through blank by design — `Itinerary` still lists every leg.
-
-Webflow also caps *how many* submissions you can receive, by site plan. Check
-that before launch if volume matters.
+Webflow caps form submissions by plan — check the site plan before launch if
+volume matters. `Payload` means no submission ever loses detail even if you
+skip some of the individual fields.
 
 ### Option B — webhook to Make / Zapier
 
@@ -140,36 +114,14 @@ setting:
 |---|---|---|
 | `data-webflow-form` | *(empty)* | Name of a Webflow form to fill and submit. Takes precedence over `data-webhook`. |
 | `data-webhook` | *(empty)* | Where submissions POST. Empty (and no form) = preview mode. |
-| `data-bg` | `#265ABE` | Panel tint. The frosted surface is mixed from this. |
+| `data-bg` | `#265ABE` | Panel background |
 | `data-bg-deep` | `#1B4593` | Dropdown and recessed surfaces |
 | `data-accent` | `#FFB627` | Progress, active route line, focus rings |
-| `data-max-width` | `100%` | Caps the panel width. Leave off for full width. |
-| `data-radius` | `12px` | The panel's corner radius |
-| `data-blur` | `18px` | Frosted glass blur strength |
 | `data-font` | *(inherits)* | Font override. Leave off to inherit the page. |
 | `data-font-url` | *(empty)* | Stylesheet URL to load a webfont |
 | `data-pax` | `2` | Starting passenger count |
 | `data-max-legs` | `6` | Cap on multi-city legs |
 | `data-ref-prefix` | `CQ` | Prefix on the reference number |
-
-## The frosted panel
-
-The panel is translucent with a `backdrop-filter` blur, so **it only looks
-frosted if there is something behind it to frost.** Put the Code Embed over a
-section with a photograph or a gradient. Over a flat colour it just reads as a
-slightly lighter block — the effect isn't broken, there's simply nothing to
-blur.
-
-It runs full width of whatever container it sits in. For an edge-to-edge panel
-the embed needs to be in a full-width section, not inside Webflow's default
-`Container`. To cap it instead, use `data-max-width="700px"`.
-
-Height is content-driven and always has been — the panel grows as legs are
-added and shrinks on the success screen. Don't set a height on the embed or its
-parent.
-
-Browsers without `backdrop-filter` fall back to the solid brand blue rather
-than a washed-out translucent panel.
 
 ## Fonts
 

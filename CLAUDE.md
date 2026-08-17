@@ -239,41 +239,60 @@ Gavin does this in Make's browser UI.
 | Webflow bridge: submit hangs, then times out | A field in the hidden Webflow form is marked **required**, or reCAPTCHA is on it. Browser validation blocks a hidden form and can't show the error. |
 | Webflow bridge: some fields arrive blank | Designer field name doesn't match `webflowFields()`. The console logs exactly which names it couldn't find. |
 | Two widgets on one page conflict | Not supported. The markup uses ids. One instance per page. |
-| Webflow bridge: every submission fails, whatever the widget does | **Check the site's form submission count before touching this code.** See below. |
+| Webflow bridge: every submission fails, whatever the widget does | **Submit the site's own untouched Webflow form first.** If that fails too, it is not this code — see below. |
 
 ---
 
-## Known issue: Webflow returns 422 on every submission
+## Resolved: Webflow's spam protection broke every form on the site
 
-Measured on the live site (tmjetg.webflow.io) in August 2026, with the browser
-driving a real submission:
+**Cause and fix, confirmed on the live site in August 2026: Webflow's spam
+protection (Cloudflare Turnstile) was enabled and Turnstile would not render.
+Turning spam protection off in Site Settings → Forms fixed it outright.**
+
+Before / after, same v1.1.0 bundle, measured in the browser:
 
 ```
-request to https://webflow.com/api/v1/form/<siteId>
-took 62.9 seconds, answered:
-  HTTP 422 — "Could not process the form submission. Please contact the site owner"
+spam protection ON     no request sent at all; form block stuck on
+                       w-form-loading; nothing after 53s
+                       (and when a token did once appear: HTTP 422 after 62.9s)
+
+spam protection OFF    HTTP 200 {"msg":"ok","code":200} in 602ms
 ```
 
-No Cloudflare Turnstile widget was rendered at any point, before or after the
-submit, so the spam check was not involved.
+Every form carried `data-turnstile-sitekey="0x4AAAAAAA…"`, Cloudflare's
+`api.js` loaded fine, and **zero** Turnstile widgets ever rendered. Rendering
+that sitekey by hand into a visible 320×80 box produced a container but no
+challenge iframe and no token — the signature of a sitekey not valid for the
+hostname. Webflow's handler then waits forever for a token and never sends.
 
-**This is a server-side refusal, not a widget fault.** Webflow answers 422 with
-that message once a site's form submission limit is used up. The free Starter
-plan allows **50 lifetime submissions and never resets**. Days of testing will
-exhaust it, and the failure looks exactly like a broken integration.
+### The lesson worth keeping
 
-Versions v1.2.0 through v1.6.2 were successive attempts to fix this from the
-client side — DOM state vs HTTP status, Designer field constraints, Turnstile
-token timing, off-screen form rendering. None of it was the cause. That work is
-still in the git history if any of it is wanted again; it was reverted here to
-get back to a known-good baseline.
+**Submit the site's own untouched Webflow form before suspecting this code.**
+Clicking the plain "Inquire" form's real submit button reproduced the failure
+exactly — no widget involved. That one test separates "the bridge is broken"
+from "the site can't submit anything", and it would have saved v1.2.0 through
+v1.6.2, all of which were client-side fixes for a site-level fault:
 
-Before changing the bridge again:
+| tag | what it chased |
+|---|---|
+| v1.2.1 | form states already visible in the Designer |
+| v1.3.0 | Designer field constraints on a hidden form |
+| v1.4.0 | HTTP status instead of Webflow's DOM state |
+| v1.5.0–v1.5.2 | Turnstile token timing; hiding the form block |
+| v1.6.0 | parking the form off-screen so Turnstile can render |
+| v1.6.1–v1.6.2 | submit-then-wait ordering; wall-clock timeouts |
 
-1. Check **Site Settings → Forms** for the submission count and site plan.
-2. If the cap is the problem, either upgrade the site plan, or switch to
-   `data-webhook` (Option B) — a webhook bypasses Webflow's form system
-   entirely and has no such cap.
+Those tags are still in the history. Two of the ideas in them are genuinely
+right and worth taking back if this bridge is ever rebuilt: deciding the
+outcome from the **HTTP status** rather than Webflow's DOM, and measuring
+timeouts against `Date.now()` rather than counting interval ticks.
+
+### If spam protection has to go back on
+
+Turnstile cannot run inside a `display:none` subtree, so the Designer
+instruction to hide the Form Block and a working Turnstile are incompatible.
+v1.6.0's `parkWebflowPlumbing()` — move the block to `<body>`, park it
+off-screen with `!important` — is the approach that satisfies both.
 
 ---
 

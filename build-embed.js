@@ -144,10 +144,11 @@ const out = `/*!
     if (D.font)     root.style.setProperty("--font-sans", D.font);
     if (D.maxWidth) root.style.setProperty("--max", D.maxWidth);
     if (D.gap)      root.style.setProperty("--gap", D.gap);
-    if (D.pad) {
-      root.style.setProperty("--pad-x", D.pad);
-      root.style.setProperty("--pad-y", D.pad);
-    }
+    /* data-pad scales padding while keeping the buttons' 1:1.33 ratio;
+       data-pad-x / data-pad-y set an axis outright and break it. */
+    if (D.pad)      root.style.setProperty("--pad", D.pad);
+    if (D.padX)     root.style.setProperty("--pad-x", D.padX);
+    if (D.padY)     root.style.setProperty("--pad-y", D.padY);
 
     (function () {${j}})();
   }

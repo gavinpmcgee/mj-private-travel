@@ -69,14 +69,15 @@ check("no bare :focus-visible", !/(^|\n)\s*:focus-visible \{/.test(css));
 check("font inherits from page", /--font-sans:\s*inherit/.test(css));
 check("panel runs full width by default", /--max:\s*100%/.test(css));
 check("no leftover fixed width", !/--max:\s*700px/.test(css));
-check("3em padding on every side", /--pad-x:\s*3em/.test(css) && /--pad-y:\s*3em/.test(css));
-check("padding is uniform, no odd bottom",
-  /padding:\s*var\(--pad-y\) var\(--pad-x\);/.test(css));
+check("padding base matches the site's buttons", /--pad:\s*1\.5em/.test(css));
+check("horizontal padding derives from it, keeping 1:1.33",
+  /--pad-x:\s*calc\(var\(--pad\) \* 4 \/ 3\)/.test(css));
+check("vertical padding is the base", /--pad-y:\s*var\(--pad\)/.test(css));
+check("panel uses the two axes", /padding:\s*var\(--pad-y\) var\(--pad-x\);/.test(css));
 check("no outer margin by default", /--gap:\s*0;/.test(css));
 check("gap is subtracted from the width, not added",
   /max-width:\s*min\(var\(--max\), calc\(100% - 2 \* var\(--gap\)\)\)/.test(css));
 check("no px padding left on the panel", !/\.cq \{[^}]*padding:\s*\d+px/.test(css));
-check("padding not cut down on mobile", !/@media[^}]*\.cq \{[^}]*--pad-x/.test(css));
 
 console.log("\nAirport autocomplete");
 const from = d.querySelector('[data-airport="from"]');
@@ -225,11 +226,19 @@ function bootWidget(bodyHtml) {
   check("no data-max-width leaves it full width",
     dmF.window.document.querySelector(".cq").style.getPropertyValue("--max"), "");
 
-  const dmP = bootWidget('<div id="charter-quote" data-gap="3em" data-pad="2em"></div>');
+  const dmP = bootWidget('<div id="charter-quote" data-gap="3em" data-pad="2.25em"></div>');
   const cqP = dmP.window.document.querySelector(".cq");
   check("data-gap overrides the margin", cqP.style.getPropertyValue("--gap"), "3em");
-  check("data-pad sets both padding axes",
-    cqP.style.getPropertyValue("--pad-x") + "/" + cqP.style.getPropertyValue("--pad-y"), "2em/2em");
+  check("data-pad scales the base, leaving the ratio to CSS",
+    cqP.style.getPropertyValue("--pad"), "2.25em");
+  check("data-pad doesn't pin an axis and flatten the ratio",
+    cqP.style.getPropertyValue("--pad-x") + cqP.style.getPropertyValue("--pad-y"), "");
+
+  const dmA = bootWidget('<div id="charter-quote" data-pad-x="4em" data-pad-y="1em"></div>');
+  const cqA = dmA.window.document.querySelector(".cq");
+  check("per-axis override wins when you want it",
+    cqA.style.getPropertyValue("--pad-y") + " / " + cqA.style.getPropertyValue("--pad-x"),
+    "1em / 4em");
 
   console.log("\nWebflow form bridge");
 

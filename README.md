@@ -73,7 +73,7 @@ widget at it:
 
 ```html
 <div id="charter-quote" data-webflow-form="Charter Quote"></div>
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.9.1/charter-quote.js" defer></script>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.10.0/charter-quote.js" defer></script>
 ```
 
 The widget fills the hidden form in and submits it for you. It waits for
@@ -118,7 +118,9 @@ setting:
 | `data-bg-deep` | `#1B4593` | Dropdown and recessed surfaces |
 | `data-accent` | `#FFB627` | Progress, active route line, focus rings |
 | `data-max-width` | `100%` | Caps the panel width. Leave off for full width. |
-| `data-pad` | `3em` | Padding inside the panel, all four sides |
+| `data-pad` | `1.5em` | Panel padding. Scales both axes, keeping the 1:1.33 ratio. |
+| `data-pad-x` | *(derived)* | Horizontal padding on its own. Breaks the ratio. |
+| `data-pad-y` | *(derived)* | Vertical padding on its own. Breaks the ratio. |
 | `data-gap` | `0` | Space *outside* the panel. Off by default — the panel runs flush. |
 | `data-font` | *(inherits)* | Font override. Leave off to inherit the page. |
 | `data-font-url` | *(empty)* | Stylesheet URL to load a webfont |
@@ -128,30 +130,34 @@ setting:
 
 ## Panel width and spacing
 
-The widget runs the **full width of whatever container it sits in**, with `3em`
-of padding on all four sides and no outer margin — it sits flush to its
-container. For an edge-to-edge panel, put the Code Embed in a full-width section
-rather than inside Webflow's default `Container`, which caps at 940px and will
-cap the widget with it.
+The widget runs the **full width of whatever container it sits in**, with no
+outer margin — it sits flush to its container. For an edge-to-edge panel, put
+the Code Embed in a full-width section rather than inside Webflow's default
+`Container`, which caps at 940px and will cap the widget with it.
 
-Measured in Chrome: padding computes to 45px on every side, and nothing scrolls
-sideways at 1440, 768, 390 or 320px.
+Padding follows **the site's own buttons**, which sit at `1.5em` vertical /
+`2em` horizontal — tighter top-to-bottom than side-to-side, a 1 : 1.33 ratio.
+At the panel's 15px type that computes to **22.5px vertical, 30px horizontal**.
 
-To change any of it:
+The ratio lives in the CSS rather than in the numbers:
 
-```html
-<div id="charter-quote"
-     data-max-width="700px"   <!-- cap the width; stays centred -->
-     data-pad="2em"           <!-- padding inside the panel -->
-     data-gap="2em"></div>    <!-- hold the panel off its container's edges -->
+```css
+--pad:   1.5em;                      /* vertical measure */
+--pad-y: var(--pad);
+--pad-x: calc(var(--pad) * 4 / 3);   /* 2em — the buttons' proportion */
 ```
 
-`data-gap` is **subtracted from the width, not added to it**, so raising it can
-never push the panel past its container or start a horizontal scroll.
+So `data-pad` **scales the padding without flattening the ratio**:
 
-On a 320px phone, 3em a side leaves 230px of content. That's deliberate — drop
-`--pad-x` in the `@media (max-width: 560px)` block if the airport fields ever
-feel too tight.
+```html
+<div id="charter-quote" data-pad="2.25em"></div>   <!-- 33.75px / 45px -->
+```
+
+Reach for `data-pad-x` / `data-pad-y` only when you want to break the ratio
+deliberately.
+
+`data-gap` holds the panel off its container's edges. It's **subtracted from the
+width, not added to it**, so raising it can never cause a horizontal scroll.
 
 ## Fonts
 

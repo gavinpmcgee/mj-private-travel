@@ -28,13 +28,18 @@
        data-max-width="700px" on the mount div to cap it instead. */
     --max: 100%;
 
-    /* Breathing room, all of it inside the panel — 3em on every side. --gap is
-       space *outside* the panel and is deliberately 0: the panel runs flush to
-       its container. Set data-gap if you ever want it held off the edges.
-       Ems, so both scale with the panel's own type. */
+    /* Padding follows the site's own buttons, which sit at 1.5em vertical /
+       2em horizontal — a 1 : 1.33 ratio, tighter top-to-bottom than side-to-
+       side. --pad is the vertical measure and --pad-x derives from it, so
+       data-pad scales the whole thing and keeps the ratio intact. Override
+       --pad-x or --pad-y directly (data-pad-x / data-pad-y) to break it.
+
+       --gap is space *outside* the panel, deliberately 0: the panel runs flush
+       to its container. data-gap holds it off the edges. */
     --gap:   0;
-    --pad-x: 3em;
-    --pad-y: 3em;
+    --pad:   1.5em;
+    --pad-y: var(--pad);
+    --pad-x: calc(var(--pad) * 4 / 3);
   }
 
   * { box-sizing: border-box; }
@@ -386,9 +391,9 @@
   .cq-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
   @media (max-width: 560px) {
-    /* Note: the 3em padding is deliberately left alone here, so it holds on
-       phones too. That costs 90px of a 375px screen — drop --pad-x in this
-       block if the airport fields ever feel too tight. */
+    /* Padding is left alone here — at 1.5em/2em it already costs only 30px a
+       side, which a 320px screen can carry. Set --pad in this block if it ever
+       needs easing further. */
     .cq-route { grid-template-columns: 1fr; gap: 0; }
     .cq-port.is-to, .cq-port.is-to input { text-align: left; }
     .cq-port input { font-size: 24px; }

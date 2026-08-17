@@ -40,6 +40,11 @@
     --pad:   1.5em;
     --pad-y: var(--pad);
     --pad-x: calc(var(--pad) * 4 / 3);
+
+    /* Headroom above the content, on its own. Follows --pad-y unless set, so
+       the panel stays symmetrical by default — data-pad-top adds space at the
+       top without touching the bottom. */
+    --pad-top: var(--pad-y);
   }
 
   * { box-sizing: border-box; }
@@ -59,7 +64,7 @@
        At the default of 0 this is simply 100%, flush to the container. */
     max-width: min(var(--max), calc(100% - 2 * var(--gap)));
     margin: var(--gap) auto;
-    padding: var(--pad-y) var(--pad-x);
+    padding: var(--pad-top) var(--pad-x) var(--pad-y);
     font-size: 15px;
     line-height: 1.5;
   }

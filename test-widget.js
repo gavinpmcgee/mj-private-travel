@@ -73,7 +73,9 @@ check("padding base matches the site's buttons", /--pad:\s*1\.5em/.test(css));
 check("horizontal padding derives from it, keeping 1:1.33",
   /--pad-x:\s*calc\(var\(--pad\) \* 4 \/ 3\)/.test(css));
 check("vertical padding is the base", /--pad-y:\s*var\(--pad\)/.test(css));
-check("panel uses the two axes", /padding:\s*var\(--pad-y\) var\(--pad-x\);/.test(css));
+check("top padding is separately addressable",
+  /padding:\s*var\(--pad-top\) var\(--pad-x\) var\(--pad-y\);/.test(css));
+check("top follows the vertical measure by default", /--pad-top:\s*var\(--pad-y\)/.test(css));
 check("no outer margin by default", /--gap:\s*0;/.test(css));
 check("gap is subtracted from the width, not added",
   /max-width:\s*min\(var\(--max\), calc\(100% - 2 \* var\(--gap\)\)\)/.test(css));
@@ -233,6 +235,11 @@ function bootWidget(bodyHtml) {
     cqP.style.getPropertyValue("--pad"), "2.25em");
   check("data-pad doesn't pin an axis and flatten the ratio",
     cqP.style.getPropertyValue("--pad-x") + cqP.style.getPropertyValue("--pad-y"), "");
+
+  const dmT = bootWidget('<div id="charter-quote" data-pad-top="5em"></div>');
+  const cqT = dmT.window.document.querySelector(".cq");
+  check("data-pad-top raises only the top", cqT.style.getPropertyValue("--pad-top"), "5em");
+  check("...leaving the bottom alone", cqT.style.getPropertyValue("--pad-y"), "");
 
   const dmA = bootWidget('<div id="charter-quote" data-pad-x="4em" data-pad-y="1em"></div>');
   const cqA = dmA.window.document.querySelector(".cq");

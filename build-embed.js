@@ -149,6 +149,7 @@ const out = `/*!
     if (D.pad)      root.style.setProperty("--pad", D.pad);
     if (D.padX)     root.style.setProperty("--pad-x", D.padX);
     if (D.padY)     root.style.setProperty("--pad-y", D.padY);
+    if (D.padTop)   root.style.setProperty("--pad-top", D.padTop);
 
     (function () {${j}})();
   }

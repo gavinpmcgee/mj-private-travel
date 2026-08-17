@@ -73,7 +73,7 @@ widget at it:
 
 ```html
 <div id="charter-quote" data-webflow-form="Charter Quote"></div>
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.10.0/charter-quote.js" defer></script>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.11.0/charter-quote.js" defer></script>
 ```
 
 The widget fills the hidden form in and submits it for you. It waits for
@@ -121,6 +121,7 @@ setting:
 | `data-pad` | `1.5em` | Panel padding. Scales both axes, keeping the 1:1.33 ratio. |
 | `data-pad-x` | *(derived)* | Horizontal padding on its own. Breaks the ratio. |
 | `data-pad-y` | *(derived)* | Vertical padding on its own. Breaks the ratio. |
+| `data-pad-top` | *(follows `pad-y`)* | Headroom above the content only. Leaves the bottom alone. |
 | `data-gap` | `0` | Space *outside* the panel. Off by default — the panel runs flush. |
 | `data-font` | *(inherits)* | Font override. Leave off to inherit the page. |
 | `data-font-url` | *(empty)* | Stylesheet URL to load a webfont |
@@ -154,7 +155,12 @@ So `data-pad` **scales the padding without flattening the ratio**:
 ```
 
 Reach for `data-pad-x` / `data-pad-y` only when you want to break the ratio
-deliberately.
+deliberately, and `data-pad-top` for headroom above the content without
+changing the bottom:
+
+```html
+<div id="charter-quote" data-pad-top="5em"></div>   <!-- 75px above, 22.5px below -->
+```
 
 `data-gap` holds the panel off its container's edges. It's **subtracted from the
 width, not added to it**, so raising it can never cause a horizontal scroll.

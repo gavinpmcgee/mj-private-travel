@@ -31,6 +31,21 @@
     --field-radius: 0;
     --radius:       5px;
 
+    /* One height for every single-line control — boxed inputs, selects, the
+       segmented control, the passenger stepper and all the buttons. They used
+       to range from 35px to 47px depending on which font size and padding each
+       happened to carry. Content is flex-centred rather than padded into
+       place, so the height holds whatever the font size is.
+
+       Excluded on purpose: the textarea (multi-line) and the FROM/TO airport
+       fields, which are an oversized underline treatment, not boxed fields.
+
+       In px, not em, deliberately: em resolves against each element's own
+       font-size, and these controls run from 13px to 15px — so an em value
+       gave every one of them a different height, which is the bug this token
+       exists to fix. */
+    --control-h: 48px;
+
     /* Full width of whatever container the embed sits in. Set
        data-max-width="700px" on the mount div to cap it instead. */
     --max: 100%;
@@ -171,12 +186,14 @@
     border: 1px solid var(--line);
     border-radius: var(--btn-radius);
     overflow: hidden;
+    min-height: var(--control-h);
   }
   .cq-seg button {
     appearance: none; border: 0; border-left: 1px solid var(--line);
     background: transparent; color: var(--on-bg-mid);
     font-family: var(--font-sans); font-size: 13.5px;
-    padding: 9px 17px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 17px; cursor: pointer;
     transition: background .15s, color .15s;
   }
   .cq-seg button:first-child { border-left: 0; }
@@ -258,6 +275,7 @@
     padding: 10px 12px; outline: none;
     transition: border-color .15s, box-shadow .15s, background .15s;
   }
+  .cq-input, .cq-select { min-height: var(--control-h); }
   .cq-input::placeholder, .cq-area::placeholder { color: var(--on-bg-low); }
   .cq-area { resize: vertical; min-height: 78px; }
   .cq-input:hover, .cq-select:hover, .cq-area:hover { background: var(--fill-hi); }
@@ -281,14 +299,14 @@
   .has-error .cq-err { display: block; }
 
   /* Passenger stepper */
-  .cq-count { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--btn-radius); background: var(--fill); }
+  .cq-count { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--btn-radius); background: var(--fill); min-height: var(--control-h); }
   .cq-count button {
     appearance: none; border: 0; background: none; width: 40px;
     font-size: 18px; color: var(--on-bg-mid); cursor: pointer; line-height: 1;
   }
   .cq-count button:hover:not(:disabled) { color: var(--on-bg); background: var(--fill-hi); }
   .cq-count button:disabled { opacity: .28; cursor: default; }
-  .cq-count output { flex: 1; text-align: center; align-self: center; font-family: var(--font-code); font-size: 15.5px; font-weight: 600; padding: 10px 0; }
+  .cq-count output { flex: 1; text-align: center; align-self: center; font-family: var(--font-code); font-size: 15.5px; font-weight: 600; }
 
   /* Checkboxes */
   .cq-checks { display: flex; flex-wrap: wrap; gap: 11px 22px; margin-top: 18px; }
@@ -349,7 +367,9 @@
     appearance: none; background: none;
     border: 1px dashed var(--line); border-radius: var(--btn-radius);
     color: var(--on-bg-mid); font-family: var(--font-sans); font-size: 13px;
-    padding: 11px; width: 100%; cursor: pointer; margin-top: 12px;
+    display: flex; align-items: center; justify-content: center;
+    min-height: var(--control-h);
+    padding: 0 11px; width: 100%; cursor: pointer; margin-top: 12px;
     transition: border-color .15s, color .15s, background .15s;
   }
   .cq-add:hover { border-color: var(--signal); color: var(--signal); background: var(--fill); }
@@ -359,7 +379,9 @@
   .cq-back {
     appearance: none; background: none; border: 1px solid var(--line);
     border-radius: var(--btn-radius); color: var(--on-bg-mid);
-    font-family: var(--font-sans); font-size: 14.5px; padding: 14px 22px; cursor: pointer;
+    font-family: var(--font-sans); font-size: 14.5px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: var(--control-h); padding: 0 22px;
     transition: background .15s, color .15s;
   }
   .cq-back:hover { background: var(--fill-hi); color: var(--on-bg); }
@@ -369,7 +391,8 @@
     appearance: none; flex: 1; border: 0; border-radius: var(--btn-radius);
     background: var(--on-bg); color: var(--bg);
     font-family: var(--font-sans); font-size: 15px; font-weight: 600;
-    padding: 15px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: var(--control-h); padding: 0 15px; cursor: pointer;
     transition: background .18s, color .18s, opacity .18s;
   }
   .cq-next:hover:not(:disabled) { background: var(--signal); color: var(--bg-deep); }

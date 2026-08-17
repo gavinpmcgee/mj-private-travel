@@ -153,6 +153,7 @@ const out = `/*!
     if (D.btnRadius)   root.style.setProperty("--btn-radius", D.btnRadius);
     if (D.fieldRadius) root.style.setProperty("--field-radius", D.fieldRadius);
     if (D.radius)      root.style.setProperty("--radius", D.radius);
+    if (D.controlHeight) root.style.setProperty("--control-h", D.controlHeight);
 
     (function () {${j}})();
   }

@@ -120,6 +120,7 @@ setting:
 | `data-btn-radius` | `0` | Radius on buttons, segmented control, stepper. Square, like the site's. |
 | `data-field-radius` | `0` | Radius on text inputs, selects, textareas. |
 | `data-radius` | `5px` | Radius on surfaces — leg cards, airport dropdown, review panel. |
+| `data-control-height` | `48px` | Height of every single-line control. Use px, not em. |
 | `data-max-width` | `100%` | Caps the panel width. Leave off for full width. |
 | `data-pad` | `1.5em` | Panel padding. Scales both axes, keeping the 1:1.33 ratio. |
 | `data-pad-x` | *(derived)* | Horizontal padding on its own. Breaks the ratio. |

@@ -83,6 +83,19 @@ check("buttons have their own radius token", /--btn-radius:\s*0/.test(css));
   const rule = new RegExp(sel + "[^}]*border-radius:\\s*var\\(--btn-radius\\)");
   check("  " + sel.replace(/\\/g, "") + " is square", rule.test(css));
 });
+/* One height for every single-line control. The token must stay in px: em
+   resolves against each element's own font-size, and these run 13px–15px, so
+   an em value silently gives every control a different height. */
+check("control height token is absolute, not em", /--control-h:\s*\d+px/.test(css));
+check("control height is not em-based", !/--control-h:\s*[\d.]+r?em/.test(css));
+["\\.cq-input, \\.cq-select", "\\.cq-seg \\{", "\\.cq-count \\{", "\\.cq-add", "\\.cq-back", "\\.cq-next"].forEach((sel) => {
+  check("  " + sel.replace(/\\|\s*\{/g, "") + " uses the shared height",
+    new RegExp(sel + "[^}]*min-height:\\s*var\\(--control-h\\)").test(css));
+});
+check("textarea keeps its own taller min-height", /\.cq-area \{[^}]*min-height:\s*78px/.test(css));
+check("buttons centre their content rather than padding it",
+  /\.cq-next \{[^}]*align-items:\s*center/.test(css) && /\.cq-back \{[^}]*align-items:\s*center/.test(css));
+
 check("fields have their own radius token", /--field-radius:\s*0/.test(css));
 check("fields are square",
   /\.cq-input, \.cq-select, \.cq-area \{[^}]*border-radius:\s*var\(--field-radius\)/.test(css));

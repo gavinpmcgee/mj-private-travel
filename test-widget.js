@@ -76,6 +76,16 @@ check("vertical padding is the base", /--pad-y:\s*var\(--pad\)/.test(css));
 check("top padding is separately addressable",
   /padding:\s*var\(--pad-top\) var\(--pad-x\) var\(--pad-y\);/.test(css));
 check("top follows the vertical measure by default", /--pad-top:\s*var\(--pad-y\)/.test(css));
+
+/* Buttons square, everything else keeps its rounding. */
+check("buttons have their own radius token", /--btn-radius:\s*0/.test(css));
+["\\.cq-seg", "\\.cq-count", "\\.cq-add", "\\.cq-back", "\\.cq-next", "\\.cq-leg-drop"].forEach((sel) => {
+  const rule = new RegExp(sel + "[^}]*border-radius:\\s*var\\(--btn-radius\\)");
+  check("  " + sel.replace(/\\/g, "") + " is square", rule.test(css));
+});
+check("fields keep their radius", /\.cq-input, \.cq-select, \.cq-area \{[^}]*border-radius:\s*var\(--radius\)/.test(css));
+check("dropdown keeps its radius", /\.cq-sugg \{[^}]*border-radius:\s*var\(--radius\)/.test(css));
+check("review panel keeps its radius", /\.cq-review \{[^}]*border-radius:\s*var\(--radius\)/.test(css));
 check("no outer margin by default", /--gap:\s*0;/.test(css));
 check("gap is subtracted from the width, not added",
   /max-width:\s*min\(var\(--max\), calc\(100% - 2 \* var\(--gap\)\)\)/.test(css));

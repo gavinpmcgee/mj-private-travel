@@ -22,7 +22,11 @@
     --font-sans: "Gilroy", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     --font-code: var(--font-sans);   /* point at a mono face if you prefer */
 
-    --radius: 5px;
+    --radius: 5px;        /* fields, cards, dropdowns */
+
+    /* Buttons are square, matching the site's own. Separate from --radius so
+       rounding the buttons doesn't round the inputs with them. */
+    --btn-radius: 0;
 
     /* Full width of whatever container the embed sits in. Set
        data-max-width="700px" on the mount div to cap it instead. */
@@ -162,7 +166,7 @@
   .cq-seg {
     display: inline-flex;
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: var(--btn-radius);
     overflow: hidden;
   }
   .cq-seg button {
@@ -194,7 +198,7 @@
   .cq-leg-drop {
     appearance: none; background: none; border: 0; color: var(--on-bg-low);
     font-family: var(--font-sans); font-size: 12px; cursor: pointer;
-    padding: 3px 6px; border-radius: var(--radius);
+    padding: 3px 6px; border-radius: var(--btn-radius);
   }
   .cq-leg-drop:hover { color: var(--on-bg); background: var(--fill-hi); }
 
@@ -274,7 +278,7 @@
   .has-error .cq-err { display: block; }
 
   /* Passenger stepper */
-  .cq-count { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius); background: var(--fill); }
+  .cq-count { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--btn-radius); background: var(--fill); }
   .cq-count button {
     appearance: none; border: 0; background: none; width: 40px;
     font-size: 18px; color: var(--on-bg-mid); cursor: pointer; line-height: 1;
@@ -340,7 +344,7 @@
   /* ---------- Actions ---------- */
   .cq-add {
     appearance: none; background: none;
-    border: 1px dashed var(--line); border-radius: var(--radius);
+    border: 1px dashed var(--line); border-radius: var(--btn-radius);
     color: var(--on-bg-mid); font-family: var(--font-sans); font-size: 13px;
     padding: 11px; width: 100%; cursor: pointer; margin-top: 12px;
     transition: border-color .15s, color .15s, background .15s;
@@ -351,7 +355,7 @@
   .cq-nav { display: flex; gap: 12px; align-items: center; margin-top: 28px; }
   .cq-back {
     appearance: none; background: none; border: 1px solid var(--line);
-    border-radius: var(--radius); color: var(--on-bg-mid);
+    border-radius: var(--btn-radius); color: var(--on-bg-mid);
     font-family: var(--font-sans); font-size: 14.5px; padding: 14px 22px; cursor: pointer;
     transition: background .15s, color .15s;
   }
@@ -359,7 +363,7 @@
   .cq-back[hidden] { display: none; }
 
   .cq-next {
-    appearance: none; flex: 1; border: 0; border-radius: var(--radius);
+    appearance: none; flex: 1; border: 0; border-radius: var(--btn-radius);
     background: var(--on-bg); color: var(--bg);
     font-family: var(--font-sans); font-size: 15px; font-weight: 600;
     padding: 15px; cursor: pointer;

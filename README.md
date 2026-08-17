@@ -73,7 +73,7 @@ widget at it:
 
 ```html
 <div id="charter-quote" data-webflow-form="Charter Quote"></div>
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.11.0/charter-quote.js" defer></script>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.12.0/charter-quote.js" defer></script>
 ```
 
 The widget fills the hidden form in and submits it for you. It waits for
@@ -117,6 +117,7 @@ setting:
 | `data-bg` | `#265ABE` | Panel background |
 | `data-bg-deep` | `#1B4593` | Dropdown and recessed surfaces |
 | `data-accent` | `#FFB627` | Progress, active route line, focus rings |
+| `data-btn-radius` | `0` | Corner radius on the widget's buttons. Square, like the site's. |
 | `data-max-width` | `100%` | Caps the panel width. Leave off for full width. |
 | `data-pad` | `1.5em` | Panel padding. Scales both axes, keeping the 1:1.33 ratio. |
 | `data-pad-x` | *(derived)* | Horizontal padding on its own. Breaks the ratio. |

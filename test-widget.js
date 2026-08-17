@@ -83,9 +83,12 @@ check("buttons have their own radius token", /--btn-radius:\s*0/.test(css));
   const rule = new RegExp(sel + "[^}]*border-radius:\\s*var\\(--btn-radius\\)");
   check("  " + sel.replace(/\\/g, "") + " is square", rule.test(css));
 });
-check("fields keep their radius", /\.cq-input, \.cq-select, \.cq-area \{[^}]*border-radius:\s*var\(--radius\)/.test(css));
-check("dropdown keeps its radius", /\.cq-sugg \{[^}]*border-radius:\s*var\(--radius\)/.test(css));
-check("review panel keeps its radius", /\.cq-review \{[^}]*border-radius:\s*var\(--radius\)/.test(css));
+check("fields have their own radius token", /--field-radius:\s*0/.test(css));
+check("fields are square",
+  /\.cq-input, \.cq-select, \.cq-area \{[^}]*border-radius:\s*var\(--field-radius\)/.test(css));
+check("surfaces keep 5px", /--radius:\s+5px/.test(css));
+check("dropdown still rounded", /\.cq-sugg \{[^}]*border-radius:\s*var\(--radius\)/.test(css));
+check("review panel still rounded", /\.cq-review \{[^}]*border-radius:\s*var\(--radius\)/.test(css));
 check("no outer margin by default", /--gap:\s*0;/.test(css));
 check("gap is subtracted from the width, not added",
   /max-width:\s*min\(var\(--max\), calc\(100% - 2 \* var\(--gap\)\)\)/.test(css));
@@ -245,6 +248,12 @@ function bootWidget(bodyHtml) {
     cqP.style.getPropertyValue("--pad"), "2.25em");
   check("data-pad doesn't pin an axis and flatten the ratio",
     cqP.style.getPropertyValue("--pad-x") + cqP.style.getPropertyValue("--pad-y"), "");
+
+  const dmR = bootWidget('<div id="charter-quote" data-field-radius="4px" data-radius="0"></div>');
+  const cqR = dmR.window.document.querySelector(".cq");
+  check("data-field-radius rounds the fields back up",
+    cqR.style.getPropertyValue("--field-radius"), "4px");
+  check("data-radius squares the surfaces", cqR.style.getPropertyValue("--radius"), "0");
 
   const dmT = bootWidget('<div id="charter-quote" data-pad-top="5em"></div>');
   const cqT = dmT.window.document.querySelector(".cq");

@@ -150,7 +150,9 @@ const out = `/*!
     if (D.padX)     root.style.setProperty("--pad-x", D.padX);
     if (D.padY)     root.style.setProperty("--pad-y", D.padY);
     if (D.padTop)   root.style.setProperty("--pad-top", D.padTop);
-    if (D.btnRadius) root.style.setProperty("--btn-radius", D.btnRadius);
+    if (D.btnRadius)   root.style.setProperty("--btn-radius", D.btnRadius);
+    if (D.fieldRadius) root.style.setProperty("--field-radius", D.fieldRadius);
+    if (D.radius)      root.style.setProperty("--radius", D.radius);
 
     (function () {${j}})();
   }

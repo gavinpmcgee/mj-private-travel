@@ -22,11 +22,14 @@
     --font-sans: "Gilroy", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     --font-code: var(--font-sans);   /* point at a mono face if you prefer */
 
-    --radius: 5px;        /* fields, cards, dropdowns */
-
-    /* Buttons are square, matching the site's own. Separate from --radius so
-       rounding the buttons doesn't round the inputs with them. */
-    --btn-radius: 0;
+    /* Three radius tokens, so squaring one thing doesn't square the rest:
+         --btn-radius    buttons, segmented control, stepper
+         --field-radius  text inputs, selects, textareas
+         --radius        surfaces — leg cards, airport dropdown, review panel
+       The first two are square, matching the site's own buttons. */
+    --btn-radius:   0;
+    --field-radius: 0;
+    --radius:       5px;
 
     /* Full width of whatever container the embed sits in. Set
        data-max-width="700px" on the mount div to cap it instead. */
@@ -251,7 +254,7 @@
     width: 100%;
     font-family: var(--font-sans); font-size: 14.5px;
     color: var(--on-bg); background: var(--fill);
-    border: 1px solid var(--line); border-radius: var(--radius);
+    border: 1px solid var(--line); border-radius: var(--field-radius);
     padding: 10px 12px; outline: none;
     transition: border-color .15s, box-shadow .15s, background .15s;
   }

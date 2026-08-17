@@ -28,12 +28,13 @@
        data-max-width="700px" on the mount div to cap it instead. */
     --max: 100%;
 
-    /* Breathing room. --gap is the space outside the panel, --pad-x/--pad-y
-       the space inside it. Overridable per embed with data-gap and data-pad.
-       Ems, so they scale with the panel's own type. */
-    --gap:   2em;
-    --pad-x: 1.5em;
-    --pad-y: 2em;
+    /* Breathing room, all of it inside the panel — 3em on every side. --gap is
+       space *outside* the panel and is deliberately 0: the panel runs flush to
+       its container. Set data-gap if you ever want it held off the edges.
+       Ems, so both scale with the panel's own type. */
+    --gap:   0;
+    --pad-x: 3em;
+    --pad-y: 3em;
   }
 
   * { box-sizing: border-box; }
@@ -48,14 +49,12 @@
   }
 
   .cq {
-    /* The margin is subtracted from the width rather than added to it, so a
-       full-width panel keeps its 2em gap instead of overflowing the container
-       by 4em. With --max at 100% the auto margins split the difference and the
-       panel sits centred with 2em clear on every side; with --max set to a
-       fixed width it stays centred and still can't touch the edges. */
+    /* --gap is subtracted from the width rather than added to it, so raising it
+       can never push the panel past its container or start a sideways scroll.
+       At the default of 0 this is simply 100%, flush to the container. */
     max-width: min(var(--max), calc(100% - 2 * var(--gap)));
     margin: var(--gap) auto;
-    padding: var(--pad-y) var(--pad-x) calc(var(--pad-y) + .25em);
+    padding: var(--pad-y) var(--pad-x);
     font-size: 15px;
     line-height: 1.5;
   }
@@ -387,10 +386,9 @@
   .cq-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
   @media (max-width: 560px) {
-    /* Padding stays at the 1.5em floor. The outside gap comes in, because 2em
-       a side costs 60px of a 375px phone and the itinerary fields need the
-       room more than the edges do. */
-    .cq { --gap: 1em; --pad-x: 1.5em; --pad-y: 1.5em; }
+    /* Note: the 3em padding is deliberately left alone here, so it holds on
+       phones too. That costs 90px of a 375px screen — drop --pad-x in this
+       block if the airport fields ever feel too tight. */
     .cq-route { grid-template-columns: 1fr; gap: 0; }
     .cq-port.is-to, .cq-port.is-to input { text-align: left; }
     .cq-port input { font-size: 24px; }

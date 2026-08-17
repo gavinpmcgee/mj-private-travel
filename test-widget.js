@@ -69,11 +69,14 @@ check("no bare :focus-visible", !/(^|\n)\s*:focus-visible \{/.test(css));
 check("font inherits from page", /--font-sans:\s*inherit/.test(css));
 check("panel runs full width by default", /--max:\s*100%/.test(css));
 check("no leftover fixed width", !/--max:\s*700px/.test(css));
-check("2em outside the panel", /--gap:\s*2em/.test(css));
-check("at least 1.5em inside it", /--pad-x:\s*1\.5em/.test(css));
-check("margin is subtracted from the width, not added",
+check("3em padding on every side", /--pad-x:\s*3em/.test(css) && /--pad-y:\s*3em/.test(css));
+check("padding is uniform, no odd bottom",
+  /padding:\s*var\(--pad-y\) var\(--pad-x\);/.test(css));
+check("no outer margin by default", /--gap:\s*0;/.test(css));
+check("gap is subtracted from the width, not added",
   /max-width:\s*min\(var\(--max\), calc\(100% - 2 \* var\(--gap\)\)\)/.test(css));
 check("no px padding left on the panel", !/\.cq \{[^}]*padding:\s*\d+px/.test(css));
+check("padding not cut down on mobile", !/@media[^}]*\.cq \{[^}]*--pad-x/.test(css));
 
 console.log("\nAirport autocomplete");
 const from = d.querySelector('[data-airport="from"]');

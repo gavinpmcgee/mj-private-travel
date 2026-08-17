@@ -73,7 +73,7 @@ widget at it:
 
 ```html
 <div id="charter-quote" data-webflow-form="Charter Quote"></div>
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.1.0/charter-quote.js" defer></script>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.8.0/charter-quote.js" defer></script>
 ```
 
 The widget fills the hidden form in and submits it for you. It waits for
@@ -117,11 +117,21 @@ setting:
 | `data-bg` | `#265ABE` | Panel background |
 | `data-bg-deep` | `#1B4593` | Dropdown and recessed surfaces |
 | `data-accent` | `#FFB627` | Progress, active route line, focus rings |
+| `data-max-width` | `100%` | Caps the panel width. Leave off for full width. |
 | `data-font` | *(inherits)* | Font override. Leave off to inherit the page. |
 | `data-font-url` | *(empty)* | Stylesheet URL to load a webfont |
 | `data-pax` | `2` | Starting passenger count |
 | `data-max-legs` | `6` | Cap on multi-city legs |
 | `data-ref-prefix` | `CQ` | Prefix on the reference number |
+
+## Panel width
+
+The widget runs the **full width of whatever container it sits in**. For an
+edge-to-edge panel, put the Code Embed in a full-width section rather than
+inside Webflow's default `Container`, which caps at 940px and will cap the
+widget with it.
+
+To cap it instead, use `data-max-width="700px"`.
 
 ## Fonts
 

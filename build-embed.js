@@ -138,10 +138,11 @@ const out = `/*!
     var root = el.querySelector(".cq");
 
     var D = el.dataset || {};
-    if (D.bg)     root.style.setProperty("--bg", D.bg);
-    if (D.bgDeep) root.style.setProperty("--bg-deep", D.bgDeep);
-    if (D.accent) root.style.setProperty("--signal", D.accent);
-    if (D.font)   root.style.setProperty("--font-sans", D.font);
+    if (D.bg)       root.style.setProperty("--bg", D.bg);
+    if (D.bgDeep)   root.style.setProperty("--bg-deep", D.bgDeep);
+    if (D.accent)   root.style.setProperty("--signal", D.accent);
+    if (D.font)     root.style.setProperty("--font-sans", D.font);
+    if (D.maxWidth) root.style.setProperty("--max", D.maxWidth);
 
     (function () {${j}})();
   }

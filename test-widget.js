@@ -67,6 +67,8 @@ check("no bare * reset", !/(^|\n)\s*\*\s*\{\s*box-sizing/.test(css));
 check("no html/body rule", !/(^|\n)\s*html, body/.test(css));
 check("no bare :focus-visible", !/(^|\n)\s*:focus-visible \{/.test(css));
 check("font inherits from page", /--font-sans:\s*inherit/.test(css));
+check("panel runs full width by default", /--max:\s*100%/.test(css));
+check("no leftover fixed width", !/--max:\s*700px/.test(css));
 
 console.log("\nAirport autocomplete");
 const from = d.querySelector('[data-airport="from"]');
@@ -207,6 +209,14 @@ function bootWidget(bodyHtml) {
 }
 
 (async function () {
+  console.log("\nPanel width");
+  const dmW = bootWidget('<div id="charter-quote" data-max-width="640px"></div>');
+  check("data-max-width caps the panel",
+    dmW.window.document.querySelector(".cq").style.getPropertyValue("--max"), "640px");
+  const dmF = bootWidget('<div id="charter-quote"></div>');
+  check("no data-max-width leaves it full width",
+    dmF.window.document.querySelector(".cq").style.getPropertyValue("--max"), "");
+
   console.log("\nWebflow form bridge");
 
   const dm = bootWidget(mockWebflowForm() +

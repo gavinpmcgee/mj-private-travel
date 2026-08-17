@@ -73,7 +73,7 @@ widget at it:
 
 ```html
 <div id="charter-quote" data-webflow-form="Charter Quote"></div>
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.12.0/charter-quote.js" defer></script>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.12.1/charter-quote.js" defer></script>
 ```
 
 The widget fills the hidden form in and submits it for you. It waits for

@@ -69,6 +69,11 @@ check("no bare :focus-visible", !/(^|\n)\s*:focus-visible \{/.test(css));
 check("font inherits from page", /--font-sans:\s*inherit/.test(css));
 check("panel runs full width by default", /--max:\s*100%/.test(css));
 check("no leftover fixed width", !/--max:\s*700px/.test(css));
+check("2em outside the panel", /--gap:\s*2em/.test(css));
+check("at least 1.5em inside it", /--pad-x:\s*1\.5em/.test(css));
+check("margin is subtracted from the width, not added",
+  /max-width:\s*min\(var\(--max\), calc\(100% - 2 \* var\(--gap\)\)\)/.test(css));
+check("no px padding left on the panel", !/\.cq \{[^}]*padding:\s*\d+px/.test(css));
 
 console.log("\nAirport autocomplete");
 const from = d.querySelector('[data-airport="from"]');
@@ -216,6 +221,12 @@ function bootWidget(bodyHtml) {
   const dmF = bootWidget('<div id="charter-quote"></div>');
   check("no data-max-width leaves it full width",
     dmF.window.document.querySelector(".cq").style.getPropertyValue("--max"), "");
+
+  const dmP = bootWidget('<div id="charter-quote" data-gap="3em" data-pad="2em"></div>');
+  const cqP = dmP.window.document.querySelector(".cq");
+  check("data-gap overrides the margin", cqP.style.getPropertyValue("--gap"), "3em");
+  check("data-pad sets both padding axes",
+    cqP.style.getPropertyValue("--pad-x") + "/" + cqP.style.getPropertyValue("--pad-y"), "2em/2em");
 
   console.log("\nWebflow form bridge");
 

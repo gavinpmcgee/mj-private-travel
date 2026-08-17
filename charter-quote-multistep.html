@@ -27,6 +27,13 @@
     /* Full width of whatever container the embed sits in. Set
        data-max-width="700px" on the mount div to cap it instead. */
     --max: 100%;
+
+    /* Breathing room. --gap is the space outside the panel, --pad-x/--pad-y
+       the space inside it. Overridable per embed with data-gap and data-pad.
+       Ems, so they scale with the panel's own type. */
+    --gap:   2em;
+    --pad-x: 1.5em;
+    --pad-y: 2em;
   }
 
   * { box-sizing: border-box; }
@@ -41,9 +48,14 @@
   }
 
   .cq {
-    max-width: var(--max);
-    margin: 0 auto;
-    padding: 30px 22px 34px;
+    /* The margin is subtracted from the width rather than added to it, so a
+       full-width panel keeps its 2em gap instead of overflowing the container
+       by 4em. With --max at 100% the auto margins split the difference and the
+       panel sits centred with 2em clear on every side; with --max set to a
+       fixed width it stays centred and still can't touch the edges. */
+    max-width: min(var(--max), calc(100% - 2 * var(--gap)));
+    margin: var(--gap) auto;
+    padding: var(--pad-y) var(--pad-x) calc(var(--pad-y) + .25em);
     font-size: 15px;
     line-height: 1.5;
   }
@@ -375,7 +387,10 @@
   .cq-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
   @media (max-width: 560px) {
-    .cq { padding: 24px 16px 28px; }
+    /* Padding stays at the 1.5em floor. The outside gap comes in, because 2em
+       a side costs 60px of a 375px phone and the itinerary fields need the
+       room more than the edges do. */
+    .cq { --gap: 1em; --pad-x: 1.5em; --pad-y: 1.5em; }
     .cq-route { grid-template-columns: 1fr; gap: 0; }
     .cq-port.is-to, .cq-port.is-to input { text-align: left; }
     .cq-port input { font-size: 24px; }

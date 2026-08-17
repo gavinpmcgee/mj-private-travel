@@ -143,6 +143,11 @@ const out = `/*!
     if (D.accent)   root.style.setProperty("--signal", D.accent);
     if (D.font)     root.style.setProperty("--font-sans", D.font);
     if (D.maxWidth) root.style.setProperty("--max", D.maxWidth);
+    if (D.gap)      root.style.setProperty("--gap", D.gap);
+    if (D.pad) {
+      root.style.setProperty("--pad-x", D.pad);
+      root.style.setProperty("--pad-y", D.pad);
+    }
 
     (function () {${j}})();
   }

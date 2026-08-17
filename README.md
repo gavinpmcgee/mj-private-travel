@@ -73,7 +73,7 @@ widget at it:
 
 ```html
 <div id="charter-quote" data-webflow-form="Charter Quote"></div>
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.8.0/charter-quote.js" defer></script>
+<script src="https://cdn.jsdelivr.net/gh/YOUR-USER/mj-private-travel@v1.9.0/charter-quote.js" defer></script>
 ```
 
 The widget fills the hidden form in and submits it for you. It waits for
@@ -118,20 +118,39 @@ setting:
 | `data-bg-deep` | `#1B4593` | Dropdown and recessed surfaces |
 | `data-accent` | `#FFB627` | Progress, active route line, focus rings |
 | `data-max-width` | `100%` | Caps the panel width. Leave off for full width. |
+| `data-gap` | `2em` | Space *outside* the panel, all four sides |
+| `data-pad` | `1.5em` | Space *inside* the panel |
 | `data-font` | *(inherits)* | Font override. Leave off to inherit the page. |
 | `data-font-url` | *(empty)* | Stylesheet URL to load a webfont |
 | `data-pax` | `2` | Starting passenger count |
 | `data-max-legs` | `6` | Cap on multi-city legs |
 | `data-ref-prefix` | `CQ` | Prefix on the reference number |
 
-## Panel width
+## Panel width and spacing
 
-The widget runs the **full width of whatever container it sits in**. For an
-edge-to-edge panel, put the Code Embed in a full-width section rather than
-inside Webflow's default `Container`, which caps at 940px and will cap the
-widget with it.
+The widget runs the **full width of whatever container it sits in**, keeping a
+`2em` gap on all four sides and `1.5em` of padding inside. For an edge-to-edge
+panel, put the Code Embed in a full-width section rather than inside Webflow's
+default `Container`, which caps at 940px and will cap the widget with it.
 
-To cap it instead, use `data-max-width="700px"`.
+Measured in a 1000px container: panel 940px, 30px clear each side, 30px above
+and below. Nothing overflows at any viewport from 320px up.
+
+The outer gap is **subtracted from the width, not added to it** — so making the
+panel full width can't push it past its container or cause sideways scroll.
+
+Below 560px the gap drops to `1em` while the padding stays at `1.5em`; 2em a
+side costs 60px of a 375px phone, and the itinerary fields need the room more
+than the edges do.
+
+To change any of it:
+
+```html
+<div id="charter-quote"
+     data-max-width="700px"   <!-- cap the width; centred, still off the edges -->
+     data-gap="3em"           <!-- space outside the panel -->
+     data-pad="2em"></div>    <!-- space inside it -->
+```
 
 ## Fonts
 

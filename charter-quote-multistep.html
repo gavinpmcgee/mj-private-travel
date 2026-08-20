@@ -377,7 +377,7 @@
     transition: border-color .15s, color .15s, background .15s;
   }
   .cq-add:hover { border-color: var(--signal); color: var(--signal); background: var(--fill); }
-  .cq-add[hidden] { display: none; }
+  .cq-add[hidden] { display: none !important; }
 
   .cq-nav { display: flex; gap: 12px; align-items: center; margin-top: 28px; }
   .cq-back {
@@ -1013,7 +1013,15 @@
   function render() {
     legsEl.innerHTML = "";
     state.legs.forEach(function (leg, i) { legsEl.appendChild(buildLeg(leg, i)); });
-    addBtn.hidden = !(state.tripType === "multi" && state.legs.length < CONFIG.maxLegs);
+    /* Host pages can override display:none, so the add control is detached
+       outright rather than just hidden. Nothing can reveal what isn't there. */
+    var canAdd = state.tripType === "multi" && state.legs.length < CONFIG.maxLegs;
+    addBtn.hidden = !canAdd;
+    if (canAdd && !addBtn.parentNode) {
+      legsEl.parentNode.insertBefore(addBtn, legsEl.nextSibling);
+    } else if (!canAdd && addBtn.parentNode) {
+      addBtn.parentNode.removeChild(addBtn);
+    }
     reportHeight();
   }
 

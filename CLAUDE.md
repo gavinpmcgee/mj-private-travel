@@ -60,6 +60,20 @@ Four steps: Trip → Aircraft → Contact → Review. State lives in a single `s
 object (`step`, `tripType`, `legs[]`, `pax`). Legs are objects with
 `{uid, from, to, date, time}` where `from`/`to` are airport records.
 
+Leg controls depend on trip type. **One way** is one leg, **Round trip** is two
+mirrored legs, **Multi-city** is two or more up to `maxLegs`. Only multi-city
+gets the `Add another leg` button and the per-leg remove `x`, and remove only
+appears past one leg.
+
+The add button is **removed from the DOM** when it doesn't apply, not just given
+`hidden`. See the host-CSS note under Troubleshooting — this is deliberate, don't
+simplify it back to a `hidden` toggle.
+
+Date and time fields call `showPicker()` on click, so the picker opens from
+anywhere in the field rather than only the icon at the right edge. It is
+feature-detected and wrapped in a `try` — where a browser lacks it or refuses,
+the field stays plain and typable.
+
 An `AIRPORT_DATA` array holds 454 business-aviation airports as pipe-delimited
 strings: `ICAO|IATA|Name|City, region|Country`. Search is client-side and tiered:
 exact code match, then code prefix, then city/name prefix, then substring.
@@ -238,6 +252,7 @@ Gavin does this in Make's browser UI.
 | Form submits but nothing arrives in Make | Preview mode — `data-webhook` is missing or empty on the mount div. |
 | Webflow bridge: submit hangs, then times out | A field in the hidden Webflow form is marked **required**, or reCAPTCHA is on it. Browser validation blocks a hidden form and can't show the error. |
 | Webflow bridge: some fields arrive blank | Designer field name doesn't match `webflowFields()`. The console logs exactly which names it couldn't find. |
+| A control shows up where it shouldn't | The host page's CSS beat `hidden`. Detach the element instead — see below. |
 | Two widgets on one page conflict | Not supported. The markup uses ids. One instance per page. |
 | Webflow bridge: every submission fails, whatever the widget does | **Submit the site's own untouched Webflow form first.** If that fails too, it is not this code — see below. |
 
@@ -293,6 +308,30 @@ Turnstile cannot run inside a `display:none` subtree, so the Designer
 instruction to hide the Form Block and a working Turnstile are incompatible.
 v1.6.0's `parkWebflowPlumbing()` — move the block to `<body>`, park it
 off-screen with `!important` — is the approach that satisfies both.
+
+---
+
+## Resolved: a host page can override `hidden`
+
+`hidden` is only a CSS default (`[hidden] { display: none }`), and this widget
+lives inside someone else's stylesheet. Any host rule matching the element at
+equal or higher specificity wins and the control reappears. On the live Webflow
+site `Add another leg` was visible on One way and Round trip for this reason,
+while the widget tested correctly in isolation every time.
+
+The gate was never wrong — `addBtn.hidden` had been scoped to multi-city since
+the first commit, and every tag from v1.0.0 carries both that line and the
+`.cq-add[hidden]` rule. Testing the widget on a bare page could not reproduce it,
+because a bare page has no competing CSS.
+
+Fixed in v1.16.0 by removing the button from the document outright when it
+doesn't apply, with `!important` on the hidden rule as a second line. Nothing a
+host stylesheet can say will reveal an element that isn't there.
+
+**The lesson:** when something must not be visible in a host page, take it out of
+the DOM. Reproduce host-CSS bugs on a page that fights back — a test host with
+`#charter-quote button { display: flex !important }` catches this class of fault
+in seconds, and a clean page never will.
 
 ---
 

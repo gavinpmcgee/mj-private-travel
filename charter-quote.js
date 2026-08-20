@@ -552,6 +552,16 @@
       render();
       return;
     }
+    /* A native date input only opens its picker from the calendar icon.
+       Open it from anywhere in the field. showPicker needs a user gesture,
+       which a click is, and throws where the browser declines - a caught
+       throw just leaves the plain typable field, which still works. */
+    var dateFld = e.target.closest('input[data-fld="date"]');
+    if (dateFld && typeof dateFld.showPicker === "function") {
+      try { dateFld.showPicker(); } catch (err) {}
+      return;
+    }
+
     var li = e.target.closest(".cq-sugg li[data-idx]");
     if (li && activeBox) choose(activeBox.results[+li.dataset.idx]);
   });

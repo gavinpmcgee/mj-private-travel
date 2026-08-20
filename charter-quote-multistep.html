@@ -216,11 +216,15 @@
   .cq-leg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   .cq-leg-no { font-family: var(--font-code); font-size: 10.5px; letter-spacing: .14em; color: var(--on-bg-low); text-transform: uppercase; }
   .cq-leg-drop {
-    appearance: none; background: none; border: 0; color: var(--on-bg-low);
-    font-family: var(--font-sans); font-size: 12px; cursor: pointer;
-    padding: 3px 6px; border-radius: var(--btn-radius);
+    appearance: none; background: none;
+    border: 1px solid var(--line); border-radius: var(--btn-radius);
+    color: var(--on-bg-mid); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; padding: 0; flex: none;
+    transition: border-color .15s, color .15s, background .15s;
   }
-  .cq-leg-drop:hover { color: var(--on-bg); background: var(--fill-hi); }
+  .cq-leg-drop svg { width: 12px; height: 12px; display: block; }
+  .cq-leg-drop:hover { border-color: var(--signal); color: var(--signal); background: var(--fill-hi); }
 
   .cq-route { display: grid; grid-template-columns: 1fr 74px 1fr; align-items: start; gap: 4px; }
   .cq-port { position: relative; min-width: 0; }
@@ -936,6 +940,10 @@
   var backBtn = $("cqBack");
   var footEl  = $("cqFoot");
 
+  var CROSS =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+    'stroke-linecap="square" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>';
+
   var PLANE =
     '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
     '<path d="M21 15.5v-2l-8-5V3.2a1.2 1.2 0 0 0-2.4 0V8.5l-8 5v2l8-2.4v4.6l-2.2 1.6v1.5l3.4-1 3.4 1v-1.5L13 17.7v-4.6l8 2.4z"/></svg>';
@@ -1020,7 +1028,9 @@
     el.innerHTML =
       '<div class="cq-leg-head">' +
         '<span class="cq-leg-no">Leg ' + String(i + 1).padStart(2, "0") + '</span>' +
-        (canDrop ? '<button type="button" class="cq-leg-drop" data-drop>Remove</button>' : '') +
+        (canDrop ? '<button type="button" class="cq-leg-drop" data-drop ' +
+          'aria-label="Remove leg ' + String(i + 1).padStart(2, "0") + '" ' +
+          'title="Remove this leg">' + CROSS + '</button>' : '') +
       '</div>' +
       '<div class="cq-route">' + port("from", leg) +
         '<div class="cq-path">' + PLANE + '</div>' + port("to", leg) +

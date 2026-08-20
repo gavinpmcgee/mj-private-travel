@@ -145,10 +145,14 @@
     background: var(--bg);
     border: 2px solid var(--line);
     margin-top: -3px;
-    transition: border-color .3s, background .3s;
+    transition: border-color .3s, background .3s, opacity .3s;
   }
   .cq-node.is-done::before { border-color: var(--signal); background: var(--signal); }
-  .cq-node.is-now::before  { border-color: var(--signal); background: var(--bg); }
+  /* The plane sits on the current node. The nodes paint above the track, so
+     this dot would land on top of the icon - fade it out and let the plane
+     stand alone. Opacity, not display, so the label doesn't jump and the
+     dot fades back in as the step is left behind. */
+  .cq-node.is-now::before  { border-color: var(--signal); background: var(--bg); opacity: 0; }
   .cq-node span {
     position: absolute;
     top: 16px;
